@@ -23,6 +23,7 @@ FOLDERZIP_DIR = os.path.join(BASE_DIR, 'folderzip')
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///disk.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 * 1024  # 16GB 最大上传大小
 app.secret_key = 'your_secret_key_here' # 用于Session加密
 
 # Session 配置 - 防止下载时 session 丢失

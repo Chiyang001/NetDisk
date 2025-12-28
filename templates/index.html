@@ -1419,14 +1419,14 @@
         let lastUpdateTime = startTime;
         let lastUploadedSize = 0;
         let speedSamples = [];
-        const maxSpeedSamples = 5; // 保留最近5次速度样本用于平滑
+        const maxSpeedSamples = 10; // 保留最近10次速度样本用于平滑
         
         // 更新速度和剩余时间
         function updateStats() {
             const currentTime = Date.now();
             const timeDiff = (currentTime - lastUpdateTime) / 1000; // 秒
             
-            if (timeDiff >= 0.5) { // 每0.5秒更新一次
+            if (timeDiff >= 0.2) { // 每0.2秒更新一次，更实时
                 const sizeDiff = uploadedSize - lastUploadedSize;
                 const currentSpeed = sizeDiff / timeDiff; // 字节/秒
                 
@@ -1436,8 +1436,15 @@
                     speedSamples.shift();
                 }
                 
-                // 计算平均速度
-                const avgSpeed = speedSamples.reduce((a, b) => a + b, 0) / speedSamples.length;
+                // 计算平均速度（使用加权平均，最近的样本权重更大）
+                let weightedSum = 0;
+                let weightSum = 0;
+                for (let i = 0; i < speedSamples.length; i++) {
+                    const weight = i + 1; // 越新的样本权重越大
+                    weightedSum += speedSamples[i] * weight;
+                    weightSum += weight;
+                }
+                const avgSpeed = weightedSum / weightSum;
                 
                 // 显示速度
                 if (avgSpeed < 1024) {
@@ -1510,34 +1517,68 @@
     }
     
     async function uploadSingleFile(file, fileList, progressCallback) {
-        const formData = new FormData();
-        formData.append('path', currentPath);
-        
-        // 获取文件的相对路径（用于文件夹上传）
-        const relativePath = file.webkitRelativePath || file.name;
-        formData.append('file', file);
-        formData.append('relativePath', relativePath);
-        
-        try {
+        return new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append('path', currentPath);
+            
+            // 获取文件的相对路径（用于文件夹上传）
+            const relativePath = file.webkitRelativePath || file.name;
+            formData.append('file', file);
+            formData.append('relativePath', relativePath);
+            
+            const xhr = new XMLHttpRequest();
             let lastLoaded = 0;
             
-            const response = await fetch('/upload', { 
-                method: 'POST', 
-                body: formData
+            // 监听上传进度
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const loaded = e.loaded;
+                    const increment = loaded - lastLoaded;
+                    
+                    if (increment > 0 && progressCallback) {
+                        progressCallback(increment);
+                        lastLoaded = loaded;
+                    }
+                }
             });
             
-            // 文件上传完成，更新进度
-            if (progressCallback) {
-                progressCallback(file.size - lastLoaded);
-            }
+            // 监听上传完成
+            xhr.addEventListener('load', () => {
+                if (xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        if (data.status === 'success') {
+                            resolve(data);
+                        } else {
+                            console.error('上传失败:', file.name, data.msg);
+                            reject(new Error(data.msg));
+                        }
+                    } catch (error) {
+                        console.error('解析响应失败:', error);
+                        reject(error);
+                    }
+                } else {
+                    console.error('上传失败:', file.name, xhr.status);
+                    reject(new Error(`HTTP ${xhr.status}`));
+                }
+            });
             
-            const data = await response.json();
-            if(data.status !== 'success') {
-                console.error('上传失败:', file.name, data.msg);
-            }
-        } catch(error) {
-            console.error('上传错误:', file.name, error);
-        }
+            // 监听上传错误
+            xhr.addEventListener('error', () => {
+                console.error('上传错误:', file.name);
+                reject(new Error('Network error'));
+            });
+            
+            // 监听上传中止
+            xhr.addEventListener('abort', () => {
+                console.error('上传中止:', file.name);
+                reject(new Error('Upload aborted'));
+            });
+            
+            // 发送请求
+            xhr.open('POST', '/upload', true);
+            xhr.send(formData);
+        });
     }
 
     // 3. 新建文件夹
