@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="{{ theme }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置 - 私有云盘</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root[data-theme="light"] {
+            --bg-overlay: rgba(102, 126, 234, 0.25);
+            --card-bg: rgba(255, 255, 255, 0.15);
+            --text-color: white;
+            --input-bg: rgba(255, 255, 255, 0.2);
+            --input-border: rgba(255, 255, 255, 0.3);
+        }
+        
+        :root[data-theme="dark"] {
+            --bg-overlay: rgba(0, 0, 0, 0.5);
+            --card-bg: rgba(0, 0, 0, 0.3);
+            --text-color: white;
+            --input-bg: rgba(255, 255, 255, 0.1);
+            --input-border: rgba(255, 255, 255, 0.2);
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            {% if bg_type == 'image' %}
+            background: url('/static/{{ bg_image }}') no-repeat center center fixed;
+            {% else %}
+            background: {{ bg_color }};
+            {% endif %}
+            background-size: cover;
+            position: relative;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-overlay);
+            z-index: 0;
+        }
+        
+        .container {
+            position: relative;
+            z-index: 10;
+        }
+        
+        .settings-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--input-border);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .settings-card h5 {
+            color: var(--text-color);
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        
+        .settings-card p, .settings-card small {
+            color: var(--text-color);
+        }
+        
+        .form-label {
+            color: var(--text-color);
+            font-weight: 500;
+        }
+        
+        .form-control, .form-select {
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            color: var(--text-color);
+        }
+        
+        .form-control:focus, .form-select:focus {
+            background: var(--input-bg);
+            border-color: var(--input-border);
+            color: var(--text-color);
+            box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.15);
+        }
+        
+        .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        /* 修复 select 选项的颜色 */
+        .form-select option {
+            background: #2c3e50;
+            color: white;
+        }
+        
+        /* 修复 color input */
+        .form-control[type="color"] {
+            height: 50px;
+            padding: 5px;
+        }
+        
+        .btn-glass {
+            background: var(--input-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--input-border);
+            color: var(--text-color);
+        }
+        
+        .btn-glass:hover {
+            background: rgba(255, 255, 255, 0.3);
+            color: var(--text-color);
+        }
+        
+        .text-white {
+            color: var(--text-color) !important;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-4">
+    <div class="settings-card">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="text-white mb-0"><i class="bi bi-gear me-2"></i>系统设置</h3>
+            <a href="/" class="btn btn-glass"><i class="bi bi-arrow-left me-2"></i>返回</a>
+        </div>
+        
+        <!-- 主题设置 -->
+        <div class="settings-card">
+            <h5><i class="bi bi-palette me-2"></i>主题设置</h5>
+            <div class="mb-3">
+                <label class="form-label">选择主题</label>
+                <select class="form-select" id="theme-select">
+                    <option value="light" {% if theme == 'light' %}selected{% endif %}>浅色主题</option>
+                    <option value="dark" {% if theme == 'dark' %}selected{% endif %}>深色主题</option>
+                </select>
+            </div>
+            <button class="btn btn-glass" onclick="saveTheme()">保存主题</button>
+        </div>
+        
+        <!-- 背景设置 -->
+        <div class="settings-card">
+            <h5><i class="bi bi-image me-2"></i>背景设置</h5>
+            <div class="mb-3">
+                <label class="form-label">背景类型</label>
+                <select class="form-select" id="bg-type-select" onchange="toggleBgType()">
+                    <option value="image" {% if bg_type == 'image' %}selected{% endif %}>图片背景</option>
+                    <option value="color" {% if bg_type == 'color' %}selected{% endif %}>纯色背景</option>
+                </select>
+            </div>
+            
+            <div id="image-bg-section" style="display: {% if bg_type == 'image' %}block{% else %}none{% endif %};">
+                <div class="mb-3">
+                    <label class="form-label">上传背景图片</label>
+                    <input type="file" class="form-control" id="bg-image-file" accept="image/*">
+                </div>
+                <button class="btn btn-glass" onclick="uploadBackground()">上传图片</button>
+            </div>
+            
+            <div id="color-bg-section" style="display: {% if bg_type == 'color' %}block{% else %}none{% endif %};">
+                <div class="mb-3">
+                    <label class="form-label">选择背景颜色</label>
+                    <input type="color" class="form-control" id="bg-color-picker" value="{{ bg_color }}">
+                </div>
+                <button class="btn btn-glass" onclick="saveBackgroundColor()">保存颜色</button>
+            </div>
+        </div>
+        
+        <!-- 密码设置 -->
+        <div class="settings-card">
+            <h5><i class="bi bi-key me-2"></i>修改密码</h5>
+            <div class="mb-3">
+                <label class="form-label">原密码</label>
+                <input type="password" class="form-control" id="old-password" placeholder="输入原密码">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">新密码</label>
+                <input type="password" class="form-control" id="new-password" placeholder="输入新密码（至少6位）">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">确认新密码</label>
+                <input type="password" class="form-control" id="confirm-password" placeholder="再次输入新密码">
+            </div>
+            <button class="btn btn-glass" onclick="changePassword()">修改密码</button>
+        </div>
+        
+        <!-- 系统维护 -->
+        <div class="settings-card">
+            <h5><i class="bi bi-tools me-2"></i>系统维护</h5>
+            
+            <div class="mb-4">
+                <h6 class="text-white">清空缓存</h6>
+                <p class="text-white" style="font-size: 0.9rem; opacity: 0.8;">
+                    清空临时文件（ZIP 压缩包、旧背景图片等），不影响云盘文件和设置
+                </p>
+                <button class="btn btn-glass" onclick="clearCache()">
+                    <i class="bi bi-trash me-2"></i>清空缓存
+                </button>
+            </div>
+            
+            <div class="border-top pt-4" style="border-color: rgba(255, 255, 255, 0.2) !important;">
+                <h6 class="text-white text-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>危险操作
+                </h6>
+                <p class="text-white" style="font-size: 0.9rem; opacity: 0.8;">
+                    清空所有数据将删除：<br>
+                    • 所有云盘文件<br>
+                    • 所有分享链接<br>
+                    • 所有临时文件<br>
+                    • 密码重置为默认密码 123456<br>
+                    • 所有设置恢复默认<br>
+                    <strong class="text-danger">此操作不可恢复！</strong>
+                </p>
+                <button class="btn btn-danger" onclick="clearAllData()" style="background: rgba(220, 53, 69, 0.3); border-color: rgba(220, 53, 69, 0.5);">
+                    <i class="bi bi-exclamation-octagon me-2"></i>清空所有数据
+                </button>
+            </div>
+        </div>
+        
+        <!-- 关于 -->
+        <div class="settings-card">
+            <h5><i class="bi bi-info-circle me-2"></i>关于</h5>
+            
+            <div class="mb-3">
+                <p class="text-white mb-2">
+                    <strong>NetDisk 私有云盘</strong>
+                </p>
+                <p class="text-white mb-2" style="font-size: 0.9rem;">
+                    版本：<span class="badge" style="background: rgba(13, 110, 253, 0.3); color: white;">{{ version }}</span>
+                </p>
+                <p class="text-white mb-2" style="font-size: 0.9rem;">
+                    作者：<a href="{{ github_url }}" target="_blank" style="color: var(--text-color); text-decoration: none; font-weight: 600;">{{ author }}</a>
+                </p>
+            </div>
+            
+            <div class="mb-3">
+                <a href="{{ github_url }}" target="_blank" class="btn btn-glass me-2 mb-2">
+                    <i class="bi bi-github me-2"></i>GitHub 主页
+                </a>
+                <a href="{{ bilibili_url }}" target="_blank" class="btn btn-glass me-2 mb-2">
+                    <i class="bi bi-play-btn me-2"></i>哔哩哔哩
+                </a>
+                <a href="https://github.com/Chiyang001/NetDisk/releases" target="_blank" class="btn btn-glass mb-2">
+                    <i class="bi bi-arrow-repeat me-2"></i>检查更新
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleBgType() {
+    const type = document.getElementById('bg-type-select').value;
+    document.getElementById('image-bg-section').style.display = type === 'image' ? 'block' : 'none';
+    document.getElementById('color-bg-section').style.display = type === 'color' ? 'block' : 'none';
+}
+
+function saveTheme() {
+    const theme = document.getElementById('theme-select').value;
+    fetch('/api/toggle-theme', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ theme: theme })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('主题已保存，刷新页面生效');
+            location.reload();
+        } else {
+            alert('保存失败: ' + data.msg);
+        }
+    });
+}
+
+function uploadBackground() {
+    const file = document.getElementById('bg-image-file').files[0];
+    if (!file) {
+        alert('请选择图片文件');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    fetch('/api/upload-background', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('背景图片已上传，刷新页面生效');
+            location.reload();
+        } else {
+            alert('上传失败: ' + data.msg);
+        }
+    });
+}
+
+function saveBackgroundColor() {
+    const color = document.getElementById('bg-color-picker').value;
+    fetch('/api/update-background', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ type: 'color', value: color })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('背景颜色已保存，刷新页面生效');
+            location.reload();
+        } else {
+            alert('保存失败: ' + data.msg);
+        }
+    });
+}
+
+function changePassword() {
+    const oldPassword = document.getElementById('old-password').value;
+    const newPassword = document.getElementById('new-password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+    
+    if (!oldPassword || !newPassword || !confirmPassword) {
+        alert('请填写所有密码字段');
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        alert('两次输入的新密码不一致');
+        return;
+    }
+    
+    if (newPassword.length < 6) {
+        alert('新密码至少6位');
+        return;
+    }
+    
+    fetch('/api/change-password', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('密码修改成功，请重新登录');
+            window.location.href = '/logout';
+        } else {
+            alert('修改失败: ' + data.msg);
+        }
+    });
+}
+
+function clearCache() {
+    if (!confirm('确定要清空缓存吗？\n\n这将删除所有临时文件（ZIP 压缩包、旧背景图片等），不会影响云盘文件和设置。')) {
+        return;
+    }
+    
+    fetch('/api/clear-cache', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.msg);
+        } else {
+            alert('清空失败: ' + data.msg);
+        }
+    });
+}
+
+function clearAllData() {
+    const warning = '⚠️ 危险操作警告 ⚠️\n\n' +
+                   '此操作将：\n' +
+                   '• 删除所有云盘文件\n' +
+                   '• 删除所有分享链接\n' +
+                   '• 删除所有临时文件\n' +
+                   '• 密码重置为默认密码 123456\n' +
+                   '• 所有设置恢复默认\n\n' +
+                   '此操作不可恢复！\n\n' +
+                   '如果确定要继续，请点击"确定"';
+    
+    if (!confirm(warning)) {
+        return;
+    }
+    
+    const confirmText = prompt('请输入 "DELETE ALL" 以确认删除所有数据：');
+    
+    if (confirmText !== 'DELETE ALL') {
+        alert('确认文本不正确，操作已取消');
+        return;
+    }
+    
+    fetch('/api/clear-all-data', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ confirm: confirmText })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.msg + '\n\n页面将跳转到登录页面');
+            window.location.href = '/login';
+        } else {
+            alert('操作失败: ' + data.msg);
+        }
+    });
+}
+</script>
+
+</body>
+</html>

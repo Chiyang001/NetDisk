@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="{{ theme }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件分享 - {{ file_name }}</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root[data-theme="light"] {
+            --bg-overlay: rgba(102, 126, 234, 0.25);
+            --card-bg: rgba(255, 255, 255, 0.15);
+            --text-color: white;
+            --input-bg: rgba(255, 255, 255, 0.2);
+            --input-border: rgba(255, 255, 255, 0.3);
+        }
+        
+        :root[data-theme="dark"] {
+            --bg-overlay: rgba(0, 0, 0, 0.5);
+            --card-bg: rgba(0, 0, 0, 0.3);
+            --text-color: white;
+            --input-bg: rgba(255, 255, 255, 0.1);
+            --input-border: rgba(255, 255, 255, 0.2);
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            {% if bg_type == 'image' %}
+            background: url('/static/{{ bg_image }}') no-repeat center center fixed;
+            {% else %}
+            background: {{ bg_color }};
+            {% endif %}
+            background-size: cover;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-overlay);
+            z-index: 0;
+        }
+        
+        .share-container {
+            position: relative;
+            z-index: 10;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .share-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--input-border);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            max-width: 600px;
+            width: 100%;
+            color: var(--text-color);
+        }
+        
+        .share-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: var(--text-color);
+        }
+        
+        .share-title {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+        
+        .share-info {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .share-info-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .share-info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .share-info-label {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+        }
+        
+        .share-info-value {
+            color: var(--text-color);
+            font-weight: 500;
+        }
+        
+        .btn-download {
+            background: rgba(13, 110, 253, 0.3);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(13, 110, 253, 0.5);
+            color: white;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        
+        .btn-download:hover {
+            background: rgba(13, 110, 253, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+            color: white;
+        }
+        
+        .btn-preview {
+            background: rgba(255, 193, 7, 0.3);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 193, 7, 0.5);
+            color: white;
+            padding: 12px 30px;
+            font-size: 1rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        
+        .btn-preview:hover {
+            background: rgba(255, 193, 7, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+            color: white;
+        }
+        
+        .expire-warning {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid rgba(220, 53, 69, 0.4);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .expire-warning i {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .thumbnail-preview {
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            border-radius: 10px;
+            margin: 20px 0;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .video-preview {
+            width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            margin: 20px 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 0;
+        }
+        
+        .video-preview i {
+            font-size: 5rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        @media (max-width: 768px) {
+            .share-card {
+                padding: 30px 20px;
+            }
+            
+            .share-title {
+                font-size: 1.4rem;
+            }
+            
+            .share-icon {
+                font-size: 3rem;
+            }
+            
+            .btn-download {
+                padding: 12px 30px;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="share-container">
+    <div class="share-card text-center">
+        {% if file_type == 'folder' %}
+        <i class="bi bi-folder-fill share-icon text-warning"></i>
+        {% elif file_type == 'batch' %}
+        <i class="bi bi-files share-icon text-success"></i>
+        {% elif file_type == 'image' %}
+        <i class="bi bi-image share-icon text-info"></i>
+        <img src="/share-thumbnail/{{ token }}" alt="{{ file_name }}" class="thumbnail-preview">
+        {% elif file_type == 'video' %}
+        <i class="bi bi-camera-video share-icon text-danger"></i>
+        <div class="video-preview">
+            <i class="bi bi-play-circle-fill"></i>
+        </div>
+        {% else %}
+        <i class="bi bi-file-earmark-text share-icon text-primary"></i>
+        {% endif %}
+        
+        <h1 class="share-title">{{ file_name }}</h1>
+        <p class="text-muted">有人向你分享了这{{ '些文件' if file_type == 'batch' else ('个文件夹' if file_type == 'folder' else '个文件') }}</p>
+        
+        <div class="share-info">
+            <div class="share-info-item">
+                <span class="share-info-label"><i class="bi bi-file-earmark me-2"></i>文件大小</span>
+                <span class="share-info-value">{{ file_size }}</span>
+            </div>
+            <div class="share-info-item">
+                <span class="share-info-label"><i class="bi bi-calendar me-2"></i>分享时间</span>
+                <span class="share-info-value">{{ created_at }}</span>
+            </div>
+            {% if expire_at %}
+            <div class="share-info-item">
+                <span class="share-info-label"><i class="bi bi-clock me-2"></i>有效期至</span>
+                <span class="share-info-value">{{ expire_at }}</span>
+            </div>
+            {% else %}
+            <div class="share-info-item">
+                <span class="share-info-label"><i class="bi bi-infinity me-2"></i>有效期</span>
+                <span class="share-info-value">永久有效</span>
+            </div>
+            {% endif %}
+        </div>
+        
+        {% if file_type in ['image', 'video', 'pdf'] and file_type != 'folder' %}
+        <a href="/share-preview/{{ token }}" class="btn btn-preview">
+            <i class="bi bi-eye me-2"></i>在线预览
+        </a>
+        {% endif %}
+        
+        {% if file_type == 'office' %}
+        <div class="alert alert-info mt-3" style="background: rgba(13, 110, 253, 0.1); border: 1px solid rgba(13, 110, 253, 0.3); color: var(--text-color); font-size: 0.9rem;">
+            <i class="bi bi-info-circle me-2"></i>
+            Office 文档需要下载后使用 Office 软件打开
+        </div>
+        {% endif %}
+        
+        <a href="/share-download/{{ token }}" class="btn btn-download">
+            <i class="bi bi-download me-2"></i>下载{{ '全部文件' if file_type == 'batch' else ('文件夹' if file_type == 'folder' else '文件') }}
+        </a>
+        
+        {% if expire_at and time_remaining %}
+        <div class="expire-warning">
+            <i class="bi bi-exclamation-triangle-fill d-block"></i>
+            <small>此分享链接将在 {{ time_remaining }} 后过期</small>
+        </div>
+        {% endif %}
+        
+        <div class="mt-4">
+            <small class="text-muted">
+                <i class="bi bi-shield-check me-1"></i>
+                由 NetDisk 提供安全分享服务
+            </small>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

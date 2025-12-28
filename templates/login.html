@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="{{ theme }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 私有云盘</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root[data-theme="light"] {
+            --bg-overlay: rgba(102, 126, 234, 0.3);
+            --card-bg: rgba(255, 255, 255, 0.15);
+            --text-color: white;
+            --input-bg: rgba(255, 255, 255, 0.2);
+            --input-border: rgba(255, 255, 255, 0.3);
+        }
+        
+        :root[data-theme="dark"] {
+            --bg-overlay: rgba(0, 0, 0, 0.5);
+            --card-bg: rgba(0, 0, 0, 0.3);
+            --text-color: white;
+            --input-bg: rgba(255, 255, 255, 0.1);
+            --input-border: rgba(255, 255, 255, 0.2);
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            {% if bg_type == 'image' %}
+            background: url('/static/{{ bg_image }}') no-repeat center center fixed;
+            {% else %}
+            background: {{ bg_color }};
+            {% endif %}
+            background-size: cover;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-overlay);
+            z-index: 0;
+        }
+        
+        body::after {
+            content: '';
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 50%;
+            bottom: -200px;
+            left: -200px;
+            animation: float 8s ease-in-out infinite reverse;
+            z-index: 1;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(20px); }
+        }
+        
+        .login-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--input-border);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            padding: 50px 40px;
+            width: 100%;
+            max-width: 420px;
+            position: relative;
+            z-index: 10;
+        }
+        
+        .login-title {
+            text-align: center;
+            margin-bottom: 35px;
+            color: var(--text-color);
+            font-weight: bold;
+            font-size: 28px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .form-label {
+            color: var(--text-color);
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+        
+        .form-control {
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            color: var(--text-color);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        
+        .form-control:focus {
+            background: var(--input-bg);
+            border-color: var(--input-border);
+            color: var(--text-color);
+            box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.15);
+        }
+        
+        .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .btn-login {
+            width: 100%;
+            background: var(--input-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--input-border);
+            color: var(--text-color);
+            padding: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-login:hover {
+            background: rgba(255, 255, 255, 0.35);
+            border-color: rgba(255, 255, 255, 0.5);
+            color: var(--text-color);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .alert {
+            background: rgba(220, 53, 69, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(220, 53, 69, 0.4);
+            color: var(--text-color);
+        }
+        
+        .text-muted {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        
+        @media (max-width: 768px) {
+            .login-card {
+                padding: 30px 25px;
+                max-width: 95%;
+                margin: 0 10px;
+            }
+            
+            .login-title {
+                font-size: 22px;
+                margin-bottom: 25px;
+            }
+            
+            .form-control {
+                font-size: 16px;
+                padding: 12px;
+            }
+            
+            .btn-login {
+                padding: 12px;
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-card">
+    <h3 class="login-title">私有云盘登录</h3>
+    
+    {% if error %}
+    <div class="alert alert-danger" role="alert">
+        {{ error }}
+    </div>
+    {% endif %}
+    
+    {% if is_default_password %}
+    <div class="alert alert-warning" role="alert" style="background: rgba(255, 193, 7, 0.2); border-color: rgba(255, 193, 7, 0.4);">
+        <i class="bi bi-exclamation-triangle me-2"></i>当前使用默认密码：<strong>123456</strong><br>
+        <small>为了安全，请登录后立即修改密码</small>
+    </div>
+    {% endif %}
+    
+    <form method="POST" action="/login">
+        <div class="mb-3">
+            <label for="password" class="form-label">请输入密码</label>
+            <input type="password" class="form-control form-control-lg" id="password" name="password" 
+                   placeholder="输入密码" required autofocus>
+        </div>
+        <button type="submit" class="btn btn-primary btn-login">登录</button>
+    </form>
+    
+    <div class="text-center mt-3">
+        <small class="text-muted">请妥善保管您的密码</small>
+    </div>
+    
+    <div class="text-center mt-4" style="opacity: 0.8;">
+        <small class="text-muted" style="font-size: 0.8rem;">
+            NetDisk Ver.2026-0101Beta by 炽阳001
+        </small>
+    </div>
+</div>
+
+</body>
+</html>

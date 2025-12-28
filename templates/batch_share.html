@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="{{ theme }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批量分享 - {{ file_count }} 个项目</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root[data-theme="light"] {
+            --bg-overlay: rgba(102, 126, 234, 0.25);
+            --card-bg: rgba(255, 255, 255, 0.15);
+            --text-color: white;
+            --input-bg: rgba(255, 255, 255, 0.2);
+            --input-border: rgba(255, 255, 255, 0.3);
+        }
+        
+        :root[data-theme="dark"] {
+            --bg-overlay: rgba(0, 0, 0, 0.5);
+            --card-bg: rgba(0, 0, 0, 0.3);
+            --text-color: white;
+            --input-bg: rgba(255, 255, 255, 0.1);
+            --input-border: rgba(255, 255, 255, 0.2);
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            {% if bg_type == 'image' %}
+            background: url('/static/{{ bg_image }}') no-repeat center center fixed;
+            {% else %}
+            background: {{ bg_color }};
+            {% endif %}
+            background-size: cover;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-overlay);
+            z-index: 0;
+        }
+        
+        .share-container {
+            position: relative;
+            z-index: 10;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .share-header {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--input-border);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            color: var(--text-color);
+            text-align: center;
+        }
+        
+        .share-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+        
+        .share-title {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .share-info {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .share-info-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .file-list-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--input-border);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        
+        .file-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--input-border);
+        }
+        
+        .file-list-header h5 {
+            color: var(--text-color);
+            margin: 0;
+        }
+        
+        .file-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--input-border);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        
+        .file-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+        }
+        
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex: 1;
+        }
+        
+        .file-icon {
+            font-size: 2rem;
+            min-width: 40px;
+            text-align: center;
+        }
+        
+        .file-details {
+            flex: 1;
+        }
+        
+        .file-name {
+            color: var(--text-color);
+            font-weight: 500;
+            margin-bottom: 5px;
+            word-break: break-all;
+        }
+        
+        .file-meta {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.85rem;
+        }
+        
+        .btn-download-single {
+            background: rgba(13, 110, 253, 0.3);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(13, 110, 253, 0.5);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-download-single:hover {
+            background: rgba(13, 110, 253, 0.5);
+            transform: translateY(-2px);
+            color: white;
+        }
+        
+        .btn-download-all {
+            background: rgba(40, 167, 69, 0.3);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(40, 167, 69, 0.5);
+            color: white;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .btn-download-all:hover {
+            background: rgba(40, 167, 69, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+            color: white;
+        }
+        
+        .expire-warning {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid rgba(220, 53, 69, 0.4);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            text-align: center;
+            color: var(--text-color);
+        }
+        
+        .empty-message {
+            text-align: center;
+            padding: 40px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        @media (max-width: 768px) {
+            .share-header {
+                padding: 20px;
+            }
+            
+            .share-title {
+                font-size: 1.4rem;
+            }
+            
+            .share-info {
+                gap: 15px;
+            }
+            
+            .file-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .btn-download-single {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="share-container">
+    <div class="share-header">
+        <i class="bi bi-files share-icon text-success"></i>
+        <h1 class="share-title">批量分享</h1>
+        <p class="text-muted">有人向你分享了 {{ file_count }} 个项目</p>
+        
+        <div class="share-info">
+            <div class="share-info-item">
+                <i class="bi bi-files"></i>
+                <span>{{ file_count }} 个项目</span>
+            </div>
+            <div class="share-info-item">
+                <i class="bi bi-hdd"></i>
+                <span>{{ total_size }}</span>
+            </div>
+            <div class="share-info-item">
+                <i class="bi bi-calendar"></i>
+                <span>{{ created_at }}</span>
+            </div>
+            {% if expire_at %}
+            <div class="share-info-item">
+                <i class="bi bi-clock"></i>
+                <span>{{ expire_at }} 过期</span>
+            </div>
+            {% else %}
+            <div class="share-info-item">
+                <i class="bi bi-infinity"></i>
+                <span>永久有效</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="file-list-card">
+        <div class="file-list-header">
+            <h5><i class="bi bi-list-ul me-2"></i>文件列表</h5>
+        </div>
+        
+        {% if files %}
+        {% for file in files %}
+        <div class="file-item">
+            <div class="file-info">
+                {% if file.is_dir %}
+                <i class="bi bi-folder-fill file-icon text-warning"></i>
+                {% elif file.file_type == 'image' %}
+                <i class="bi bi-file-image file-icon text-info"></i>
+                {% elif file.file_type == 'video' %}
+                <i class="bi bi-file-play file-icon text-danger"></i>
+                {% elif file.file_type == 'pdf' %}
+                <i class="bi bi-file-pdf file-icon text-danger"></i>
+                {% elif file.file_type == 'office' %}
+                <i class="bi bi-file-word file-icon text-primary"></i>
+                {% else %}
+                <i class="bi bi-file-earmark file-icon text-secondary"></i>
+                {% endif %}
+                
+                <div class="file-details">
+                    <div class="file-name">{{ file.name }}</div>
+                    <div class="file-meta">{{ file.size }} · {{ file.type_text }}</div>
+                </div>
+            </div>
+            
+            <a href="/share-download-single/{{ token }}/{{ loop.index0 }}" class="btn-download-single">
+                <i class="bi bi-download"></i>
+                <span>下载</span>
+            </a>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-message">
+            <i class="bi bi-inbox" style="font-size: 3rem; margin-bottom: 15px;"></i>
+            <p>文件列表为空或文件已被删除</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    {% if files %}
+    <div class="file-list-card">
+        <a href="/share-download/{{ token }}" class="btn-download-all">
+            <i class="bi bi-download"></i>
+            <span>下载全部文件（打包为 ZIP）</span>
+        </a>
+        
+        {% if expire_at and time_remaining %}
+        <div class="expire-warning">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <small class="d-block mt-2">此分享链接将在 {{ time_remaining }} 后过期</small>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <div class="text-center mt-4">
+        <small style="color: rgba(255, 255, 255, 0.7);">
+            <i class="bi bi-shield-check me-1"></i>
+            由 NetDisk 提供安全分享服务
+        </small>
+    </div>
+</div>
+
+</body>
+</html>
