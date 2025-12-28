@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="{{ theme }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>压缩包内容 - {{ archive_name }}</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root[data-theme="light"] {
+            --bg-overlay: rgba(102, 126, 234, 0.25);
+            --card-bg: rgba(255, 255, 255, 0.15);
+            --text-color: white;
+            --list-bg: rgba(255, 255, 255, 0.1);
+            --list-hover: rgba(255, 255, 255, 0.2);
+        }
+        
+        :root[data-theme="dark"] {
+            --bg-overlay: rgba(0, 0, 0, 0.5);
+            --card-bg: rgba(0, 0, 0, 0.3);
+            --text-color: white;
+            --list-bg: rgba(255, 255, 255, 0.05);
+            --list-hover: rgba(255, 255, 255, 0.1);
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            {% if bg_type == 'image' %}
+            background: url('/static/{{ bg_image }}') no-repeat center center fixed;
+            {% else %}
+            background: {{ bg_color }};
+            {% endif %}
+            background-size: cover;
+            position: relative;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-overlay);
+            z-index: 0;
+        }
+        
+        .container {
+            position: relative;
+            z-index: 10;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .archive-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 15px;
+            padding: 30px;
+            color: var(--text-color);
+            margin-bottom: 20px;
+        }
+        
+        .archive-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .archive-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            word-break: break-all;
+        }
+        
+        .archive-info {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .info-item {
+            text-align: center;
+        }
+        
+        .info-label {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        
+        .file-list {
+            background: var(--list-bg);
+            border-radius: 10px;
+            overflow: hidden;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        
+        .file-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        
+        .file-item:hover {
+            background: var(--list-hover);
+        }
+        
+        .file-item:last-child {
+            border-bottom: none;
+        }
+        
+        .file-info {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .file-icon {
+            font-size: 1.5rem;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        
+        .file-details {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .file-name {
+            font-weight: 500;
+            word-break: break-all;
+            margin-bottom: 3px;
+        }
+        
+        .file-size {
+            font-size: 0.85rem;
+            opacity: 0.7;
+        }
+        
+        .btn-glass {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-glass:hover {
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .btn-download {
+            background: rgba(13, 110, 253, 0.3);
+            border: 1px solid rgba(13, 110, 253, 0.5);
+            padding: 6px 15px;
+            font-size: 0.9rem;
+        }
+        
+        .btn-download:hover {
+            background: rgba(13, 110, 253, 0.5);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-color);
+        }
+        
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        
+        @media (max-width: 768px) {
+            .archive-card {
+                padding: 20px;
+            }
+            
+            .archive-title {
+                font-size: 1.2rem;
+            }
+            
+            .file-item {
+                padding: 12px 15px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .btn-download {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="archive-card">
+        <div class="archive-header">
+            <div>
+                <i class="bi bi-file-zip me-2"></i>
+                <span class="archive-title">{{ archive_name }}</span>
+            </div>
+            <div>
+                <button class="btn btn-glass me-2" onclick="extractAll()">
+                    <i class="bi bi-box-arrow-down me-1"></i>解压全部
+                </button>
+                <a href="javascript:history.back()" class="btn btn-glass">
+                    <i class="bi bi-x-lg me-1"></i>关闭
+                </a>
+            </div>
+        </div>
+        
+        <div class="archive-info">
+            <div class="info-item">
+                <div class="info-label">文件数量</div>
+                <div class="info-value" id="file-count">-</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">文件夹数量</div>
+                <div class="info-value" id="folder-count">-</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">总大小</div>
+                <div class="info-value" id="total-size">-</div>
+            </div>
+        </div>
+        
+        <div id="loading" class="loading">
+            <div class="spinner-border text-light" role="status"></div>
+            <p class="mt-3">正在读取压缩包内容...</p>
+        </div>
+        
+        <div id="file-list" class="file-list" style="display: none;"></div>
+        
+        <div id="error-message" class="alert alert-danger" style="display: none;"></div>
+    </div>
+</div>
+
+<script>
+    const archivePath = "{{ archive_path }}";
+    
+    // 页面加载时获取压缩包内容
+    window.addEventListener('DOMContentLoaded', function() {
+        loadArchiveContent();
+    });
+    
+    function loadArchiveContent() {
+        fetch('/api/archive-content', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ path: archivePath })
+        })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('loading').style.display = 'none';
+            
+            if (data.status === 'success') {
+                // 显示统计信息
+                document.getElementById('file-count').textContent = data.file_count;
+                document.getElementById('folder-count').textContent = data.folder_count;
+                document.getElementById('total-size').textContent = data.total_size;
+                
+                // 显示文件列表
+                const fileList = document.getElementById('file-list');
+                fileList.style.display = 'block';
+                
+                if (data.files.length === 0) {
+                    fileList.innerHTML = '<div class="text-center p-4">压缩包为空</div>';
+                } else {
+                    fileList.innerHTML = data.files.map(file => {
+                        const icon = file.is_dir ? 
+                            '<i class="bi bi-folder-fill text-warning file-icon"></i>' :
+                            '<i class="bi bi-file-earmark text-info file-icon"></i>';
+                        
+                        const downloadBtn = file.is_dir ? '' :
+                            `<button class="btn btn-glass btn-download" onclick="downloadFile('${escapeHtml(file.name)}')">
+                                <i class="bi bi-download me-1"></i>下载
+                            </button>`;
+                        
+                        return `
+                            <div class="file-item">
+                                <div class="file-info">
+                                    ${icon}
+                                    <div class="file-details">
+                                        <div class="file-name">${escapeHtml(file.name)}</div>
+                                        <div class="file-size">${file.size}</div>
+                                    </div>
+                                </div>
+                                ${downloadBtn}
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } else {
+                showError(data.msg);
+            }
+        })
+        .catch(err => {
+            document.getElementById('loading').style.display = 'none';
+            showError('加载失败: ' + err);
+        });
+    }
+    
+    function downloadFile(fileName) {
+        // 创建一个隐藏的表单来下载文件
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/download-from-archive';
+        form.style.display = 'none';
+        
+        const archiveInput = document.createElement('input');
+        archiveInput.name = 'archive_path';
+        archiveInput.value = archivePath;
+        form.appendChild(archiveInput);
+        
+        const fileInput = document.createElement('input');
+        fileInput.name = 'file_name';
+        fileInput.value = fileName;
+        form.appendChild(fileInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    }
+    
+    function extractAll() {
+        if (confirm('确定要解压所有文件到当前目录吗？')) {
+            const loadingMsg = document.createElement('div');
+            loadingMsg.className = 'alert alert-info position-fixed top-50 start-50 translate-middle';
+            loadingMsg.style.zIndex = '9999';
+            loadingMsg.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>正在解压，请稍候...';
+            document.body.appendChild(loadingMsg);
+            
+            // 获取当前路径（从 archive_path 中提取目录）
+            const pathParts = archivePath.split('/');
+            pathParts.pop(); // 移除文件名
+            const currentPath = pathParts.join('/');
+            
+            fetch('/api/extract', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    path: archivePath,
+                    extract_to: currentPath
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.body.removeChild(loadingMsg);
+                if (data.status === 'success') {
+                    alert(data.msg);
+                    window.location.href = '/?path=' + encodeURIComponent(currentPath);
+                } else {
+                    alert('解压失败: ' + data.msg);
+                }
+            })
+            .catch(err => {
+                document.body.removeChild(loadingMsg);
+                alert('解压失败: ' + err);
+            });
+        }
+    }
+    
+    function showError(message) {
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+
+</body>
+</html>

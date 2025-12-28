@@ -167,26 +167,22 @@
     </iframe>
     
     {% elif file_type == 'office' %}
-    <!-- Office 文档预览提示 -->
-    <div class="info-box">
-        <i class="bi bi-info-circle-fill"></i>
-        <strong>Office 文档预览说明：</strong>
-        <p class="mb-2 mt-2">由于浏览器限制，Office 文档（Word、Excel、PPT）无法直接在线预览。</p>
-        <p class="mb-0">建议您下载文件后使用 Microsoft Office 或 WPS 等软件打开。</p>
+    <!-- Office 文档预览 - 使用 Microsoft Office Online Viewer -->
+    <div class="loading-overlay" id="loading">
+        <div class="spinner-border" role="status"></div>
+        <p class="mt-3 text-muted">正在加载文档预览...</p>
     </div>
     
-    <div class="error-message">
-        <i class="bi bi-file-earmark-word"></i>
-        <h4>{{ file_name }}</h4>
-        <p>Office 文档需要下载后查看</p>
-        <a href="/download?path={{ file_path }}" class="btn btn-custom btn-lg">
-            <i class="bi bi-download me-2"></i>下载文件
-        </a>
-        <div class="mt-4">
-            <small class="text-muted">
-                支持的软件：Microsoft Office、WPS Office、LibreOffice 等
-            </small>
-        </div>
+    <iframe id="preview-frame" 
+            class="preview-iframe" 
+            src="https://view.officeapps.live.com/op/embed.aspx?src={{ file_url }}"
+            onload="hideLoading()">
+    </iframe>
+    
+    <div class="info-box">
+        <i class="bi bi-info-circle-fill"></i>
+        <strong>提示：</strong>
+        如果预览失败，可能是因为文件无法被外部访问。请尝试下载文件后使用 Office 软件打开。
     </div>
     
     {% else %}
@@ -203,6 +199,13 @@
 </div>
 
 <script>
+    function hideLoading() {
+        const loading = document.getElementById('loading');
+        if (loading) {
+            loading.classList.add('hidden');
+        }
+    }
+    
     {% if file_type == 'pdf' %}
     // PDF 加载监听
     const iframe = document.getElementById('preview-frame');
@@ -223,6 +226,14 @@
             </div>
         `;
     };
+    {% elif file_type == 'office' %}
+    // Office 文档加载超时处理
+    setTimeout(function() {
+        const loading = document.getElementById('loading');
+        if (loading && !loading.classList.contains('hidden')) {
+            hideLoading();
+        }
+    }, 10000); // 10秒后自动隐藏加载提示
     {% endif %}
 </script>
 

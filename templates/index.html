@@ -970,6 +970,10 @@
                     <div class="file-thumbnail me-3">
                         <i class="bi bi-play-circle-fill thumbnail-video-icon"></i>
                     </div>
+                    {% elif file.file_type == 'audio' %}
+                    <i class="bi file-icon bi-music-note-beamed text-success me-3"></i>
+                    {% elif file.file_type == 'archive' %}
+                    <i class="bi file-icon bi-file-zip text-warning me-3"></i>
                     {% elif file.file_type == 'pdf' %}
                     <i class="bi file-icon bi-file-earmark-pdf text-danger me-3"></i>
                     {% elif file.file_type == 'office' %}
@@ -1015,6 +1019,10 @@
                 <div class="grid-thumbnail">
                     <i class="bi bi-play-circle-fill" style="font-size: 3rem; color: rgba(255, 255, 255, 0.8);"></i>
                 </div>
+                {% elif file.file_type == 'audio' %}
+                <i class="bi grid-icon bi-music-note-beamed text-success"></i>
+                {% elif file.file_type == 'archive' %}
+                <i class="bi grid-icon bi-file-zip text-warning"></i>
                 {% elif file.file_type == 'pdf' %}
                 <i class="bi grid-icon bi-file-earmark-pdf text-danger"></i>
                 {% elif file.file_type == 'office' %}
@@ -1059,6 +1067,7 @@
 <div id="context-menu" class="context-menu list-group" style="width: 150px;">
     <div class="list-group-item" onclick="menuAction('preview')">预览</div>
     <div class="list-group-item" onclick="menuAction('download')">下载</div>
+    <div class="list-group-item" onclick="menuAction('extract')" id="menu-extract" style="display: none;">解压到此处</div>
     <div class="list-group-item" onclick="menuAction('share')">分享文件</div>
     <div class="list-group-item" onclick="menuAction('rename')">重命名</div>
     <div class="list-group-item" onclick="menuAction('copy')">复制</div>
@@ -1183,16 +1192,14 @@
         const isDir = element.dataset.isdir === 'True';
         const fileType = element.dataset.filetype;
         
-        // 如果是图片、视频或 PDF，打开预览
-        if (fileType === 'image' || fileType === 'video' || fileType === 'pdf') {
+        // 如果是压缩包，打开内容查看页面
+        if (fileType === 'archive') {
+            window.location.href = `/archive-view?path=${encodeURIComponent(path)}`;
+        }
+        // 如果是图片、视频、音频、PDF 或 Office 文档，打开预览
+        else if (fileType === 'image' || fileType === 'video' || fileType === 'audio' || fileType === 'pdf' || fileType === 'office') {
             window.location.href = `/preview?path=${encodeURIComponent(path)}`;
         } 
-        // Office 文档直接下载
-        else if (fileType === 'office') {
-            if (confirm('Office 文档无法在线预览，是否下载文件？')) {
-                window.location.href = `/download?path=${encodeURIComponent(path)}`;
-            }
-        }
         else {
             openPath(path, isDir);
         }
@@ -1803,21 +1810,30 @@
         const path = element.dataset.path;
         const name = element.dataset.name;
         const isDir = element.dataset.isdir === 'True';
-        showMenu(e, path, name, isDir);
+        const fileType = element.dataset.filetype;
+        showMenu(e, path, name, isDir, fileType);
         return false;
     }
     
-    function showMenu(e, path, name, isDir) {
+    function showMenu(e, path, name, isDir, fileType) {
         e.preventDefault();
         e.stopPropagation(); // 防止冒泡
-        selectedFile = { path, name, isDir };
+        selectedFile = { path, name, isDir, fileType };
         
         let menu = document.getElementById('context-menu');
         menu.style.display = 'block';
         
+        // 根据文件类型显示/隐藏解压选项
+        const extractOption = document.getElementById('menu-extract');
+        if (fileType === 'archive' && !isDir) {
+            extractOption.style.display = 'block';
+        } else {
+            extractOption.style.display = 'none';
+        }
+        
         // 确保菜单不超出屏幕
         const menuWidth = 180;
-        const menuHeight = 240;
+        const menuHeight = 280;
         let left = e.pageX;
         let top = e.pageY;
         
@@ -1839,16 +1855,47 @@
         
         if (action === 'preview') {
             const fileType = document.querySelector(`[data-path="${selectedFile.path}"]`).dataset.filetype;
-            if (fileType === 'image' || fileType === 'video' || fileType === 'pdf') {
+            if (fileType === 'image' || fileType === 'video' || fileType === 'audio' || fileType === 'pdf' || fileType === 'office') {
                 window.location.href = `/preview?path=${encodeURIComponent(selectedFile.path)}`;
-            } else if (fileType === 'office') {
-                alert('Office 文档无法在线预览，请下载后使用 Office 软件打开');
             } else {
                 alert('此文件类型不支持预览');
             }
         }
         else if (action === 'download') {
             window.location.href = `/download?path=${encodeURIComponent(selectedFile.path)}`;
+        }
+        else if (action === 'extract') {
+            if(confirm(`确定要解压 ${selectedFile.name} 吗？\n文件将解压到当前目录`)) {
+                // 显示加载提示
+                const loadingMsg = document.createElement('div');
+                loadingMsg.className = 'alert alert-info position-fixed top-50 start-50 translate-middle';
+                loadingMsg.style.zIndex = '9999';
+                loadingMsg.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>正在解压，请稍候...';
+                document.body.appendChild(loadingMsg);
+                
+                fetch('/api/extract', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ 
+                        path: selectedFile.path,
+                        extract_to: currentPath
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    document.body.removeChild(loadingMsg);
+                    if (data.status === 'success') {
+                        alert(data.msg);
+                        location.reload();
+                    } else {
+                        alert('解压失败: ' + data.msg);
+                    }
+                })
+                .catch(err => {
+                    document.body.removeChild(loadingMsg);
+                    alert('解压失败: ' + err);
+                });
+            }
         }
         else if (action === 'delete') {
             if(confirm(`确定要删除 ${selectedFile.name} 吗?`)) {

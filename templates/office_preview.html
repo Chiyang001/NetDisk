@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="{{ theme }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文档预览 - {{ file_name }}</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root[data-theme="light"] {
+            --bg-overlay: rgba(102, 126, 234, 0.25);
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --text-color: #333;
+            --border-color: rgba(0, 0, 0, 0.1);
+        }
+        
+        :root[data-theme="dark"] {
+            --bg-overlay: rgba(0, 0, 0, 0.5);
+            --card-bg: rgba(30, 30, 30, 0.95);
+            --text-color: #e0e0e0;
+            --border-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            {% if bg_type == 'image' %}
+            background: url('/static/{{ bg_image }}') no-repeat center center fixed;
+            {% else %}
+            background: {{ bg_color }};
+            {% endif %}
+            background-size: cover;
+            position: relative;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-overlay);
+            z-index: 0;
+        }
+        
+        .container {
+            position: relative;
+            z-index: 10;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .preview-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            padding: 0;
+            color: var(--text-color);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        
+        .preview-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .preview-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            word-break: break-all;
+            margin: 0;
+        }
+        
+        .preview-content {
+            padding: 30px;
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+        
+        .document-content {
+            line-height: 1.8;
+        }
+        
+        .document-content h1,
+        .document-content h2,
+        .document-content h3,
+        .document-content h4,
+        .document-content h5,
+        .document-content h6 {
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        
+        .document-content p {
+            margin-bottom: 1rem;
+        }
+        
+        .document-content table {
+            margin: 1.5rem 0;
+        }
+        
+        .document-content table td,
+        .document-content table th {
+            padding: 8px 12px;
+        }
+        
+        .presentation .slide {
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .presentation .slide h3 {
+            color: #0d6efd;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #0d6efd;
+        }
+        
+        .presentation .slide-content {
+            padding: 1rem;
+        }
+        
+        .table-responsive {
+            margin: 1.5rem 0;
+            max-height: 600px;
+            overflow: auto;
+        }
+        
+        .btn-glass {
+            background: rgba(13, 110, 253, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(13, 110, 253, 0.5);
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-glass:hover {
+            background: rgba(13, 110, 253, 0.4);
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .btn-close-glass {
+            background: rgba(108, 117, 125, 0.2);
+            border: 1px solid rgba(108, 117, 125, 0.5);
+        }
+        
+        .btn-close-glass:hover {
+            background: rgba(108, 117, 125, 0.4);
+        }
+        
+        .alert {
+            margin: 2rem 0;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .preview-header {
+                padding: 15px;
+            }
+            
+            .preview-title {
+                font-size: 1.1rem;
+            }
+            
+            .preview-content {
+                padding: 20px;
+            }
+            
+            .presentation .slide {
+                padding: 1rem;
+            }
+        }
+        
+        /* 滚动条样式 */
+        .preview-content::-webkit-scrollbar,
+        .table-responsive::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        .preview-content::-webkit-scrollbar-track,
+        .table-responsive::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+        }
+        
+        .preview-content::-webkit-scrollbar-thumb,
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+        
+        .preview-content::-webkit-scrollbar-thumb:hover,
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="preview-card">
+        <div class="preview-header">
+            <h1 class="preview-title">
+                <i class="bi bi-file-earmark-text me-2"></i>{{ file_name }}
+            </h1>
+            <div>
+                <a href="/download?path={{ file_path }}" class="btn btn-glass me-2">
+                    <i class="bi bi-download me-1"></i>下载
+                </a>
+                <a href="javascript:history.back()" class="btn btn-glass btn-close-glass">
+                    <i class="bi bi-x-lg me-1"></i>关闭
+                </a>
+            </div>
+        </div>
+        
+        <div class="preview-content">
+            {{ html_content|safe }}
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

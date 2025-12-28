@@ -194,6 +194,23 @@
             color: rgba(255, 255, 255, 0.8);
         }
         
+        .audio-preview {
+            width: 100%;
+            max-height: 200px;
+            border-radius: 10px;
+            margin: 20px 0;
+            background: rgba(40, 167, 69, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 50px 0;
+        }
+        
+        .audio-preview i {
+            font-size: 4rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
         @media (max-width: 768px) {
             .share-card {
                 padding: 30px 20px;
@@ -230,6 +247,17 @@
         <div class="video-preview">
             <i class="bi bi-play-circle-fill"></i>
         </div>
+        {% elif file_type == 'audio' %}
+        <i class="bi bi-music-note-beamed share-icon text-success"></i>
+        <div class="audio-preview">
+            <i class="bi bi-play-circle-fill"></i>
+        </div>
+        {% elif file_type == 'archive' %}
+        <i class="bi bi-file-zip share-icon text-warning"></i>
+        {% elif file_type == 'pdf' %}
+        <i class="bi bi-file-pdf share-icon text-danger"></i>
+        {% elif file_type == 'office' %}
+        <i class="bi bi-file-word share-icon text-primary"></i>
         {% else %}
         <i class="bi bi-file-earmark-text share-icon text-primary"></i>
         {% endif %}
@@ -259,7 +287,7 @@
             {% endif %}
         </div>
         
-        {% if file_type in ['image', 'video', 'pdf'] and file_type != 'folder' %}
+        {% if file_type in ['image', 'video', 'audio', 'pdf', 'office'] and file_type != 'folder' %}
         <a href="/share-preview/{{ token }}" class="btn btn-preview">
             <i class="bi bi-eye me-2"></i>在线预览
         </a>

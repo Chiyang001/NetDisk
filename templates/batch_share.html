@@ -301,6 +301,10 @@
                 <i class="bi bi-file-image file-icon text-info"></i>
                 {% elif file.file_type == 'video' %}
                 <i class="bi bi-file-play file-icon text-danger"></i>
+                {% elif file.file_type == 'audio' %}
+                <i class="bi bi-music-note-beamed file-icon text-success"></i>
+                {% elif file.file_type == 'archive' %}
+                <i class="bi bi-file-zip file-icon text-warning"></i>
                 {% elif file.file_type == 'pdf' %}
                 <i class="bi bi-file-pdf file-icon text-danger"></i>
                 {% elif file.file_type == 'office' %}

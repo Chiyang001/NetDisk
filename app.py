@@ -198,6 +198,15 @@ def is_video(filename):
     video_exts = {'.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv', '.flv', '.wmv'}
     return os.path.splitext(filename.lower())[1] in video_exts
 
+def is_audio(filename):
+    audio_exts = {'.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.wma', '.ape', '.opus'}
+    return os.path.splitext(filename.lower())[1] in audio_exts
+
+def is_archive(filename):
+    archive_exts = {'.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.tar.gz', '.tar.bz2', '.tar.xz'}
+    lower_name = filename.lower()
+    return any(lower_name.endswith(ext) for ext in archive_exts)
+
 def is_office_doc(filename):
     office_exts = {'.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'}
     return os.path.splitext(filename.lower())[1] in office_exts
@@ -210,6 +219,10 @@ def get_file_type(filename):
         return 'image'
     elif is_video(filename):
         return 'video'
+    elif is_audio(filename):
+        return 'audio'
+    elif is_archive(filename):
+        return 'archive'
     elif is_office_doc(filename):
         return 'office'
     elif is_pdf(filename):
@@ -425,8 +438,26 @@ def paste():
     try:
         abs_src = get_safe_path(src_path)
         abs_dest_folder = get_safe_path(dest_path)
+        
+        # 检查源文件是否存在
+        if not os.path.exists(abs_src):
+            return jsonify({'status': 'error', 'msg': '源文件不存在'})
+        
+        # 检查目标文件夹是否存在
+        if not os.path.exists(abs_dest_folder):
+            return jsonify({'status': 'error', 'msg': '目标文件夹不存在'})
+        
         filename = os.path.basename(abs_src)
         abs_dest_final = os.path.join(abs_dest_folder, filename)
+        
+        # 如果目标已存在，自动重命名
+        if os.path.exists(abs_dest_final):
+            base_name, ext = os.path.splitext(filename)
+            counter = 1
+            while os.path.exists(abs_dest_final):
+                new_filename = f"{base_name}_副本{counter}{ext}"
+                abs_dest_final = os.path.join(abs_dest_folder, new_filename)
+                counter += 1
 
         if action == 'copy':
             if os.path.isdir(abs_src):
@@ -438,7 +469,9 @@ def paste():
             
         return jsonify({'status': 'success'})
     except Exception as e:
-        return jsonify({'status': 'error', 'msg': str(e)})
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'msg': f'操作失败: {str(e)}'})
 
 # --- 接口：上传文件 ---
 @app.route('/upload', methods=['POST'])
@@ -580,6 +613,8 @@ def access_share(token):
                         type_text = {
                             'image': '图片',
                             'video': '视频',
+                            'audio': '音频',
+                            'archive': '压缩包',
                             'pdf': 'PDF文档',
                             'office': 'Office文档',
                             'file': '文件'
@@ -861,7 +896,7 @@ def share_preview(token):
         filename = os.path.basename(abs_path)
         file_type = get_file_type(filename)
         
-        if file_type not in ['image', 'video', 'office', 'pdf']:
+        if file_type not in ['image', 'video', 'audio', 'office', 'pdf']:
             return "此文件类型不支持预览", 400
         
         # Office 文档和 PDF 使用新的预览页面
@@ -877,7 +912,7 @@ def share_preview(token):
                                  file_type=file_type,
                                  file_url=file_url)
         
-        # 图片和视频使用原来的预览页面
+        # 图片、视频和音频使用原来的预览页面
         return render_template('preview.html', 
                              file_path=link.file_path, 
                              file_name=filename,
@@ -1010,6 +1045,260 @@ def thumbnail():
     except:
         abort(404)
 
+# --- 路由：查看压缩包内容 ---
+@app.route('/archive-view')
+@login_required
+def archive_view():
+    path = request.args.get('path')
+    try:
+        abs_path = get_safe_path(path)
+        if not os.path.isfile(abs_path):
+            abort(404)
+        
+        if not is_archive(abs_path):
+            abort(404)
+        
+        filename = os.path.basename(abs_path)
+        
+        # 获取主题和背景设置
+        theme = get_setting('theme', 'light')
+        bg_type = get_setting('background_type', 'image')
+        bg_image = get_setting('background_image', 'bg.png')
+        bg_color = get_setting('background_color', '#667eea')
+        
+        return render_template('archive_view.html',
+                             archive_path=path,
+                             archive_name=filename,
+                             theme=theme,
+                             bg_type=bg_type,
+                             bg_image=bg_image,
+                             bg_color=bg_color)
+    except:
+        abort(404)
+
+# --- 路由：从压缩包下载单个文件 ---
+@app.route('/download-from-archive', methods=['POST'])
+@login_required
+def download_from_archive():
+    archive_path = request.form.get('archive_path')
+    file_name = request.form.get('file_name')
+    
+    try:
+        abs_archive_path = get_safe_path(archive_path)
+        
+        if not os.path.exists(abs_archive_path):
+            return "压缩包不存在", 404
+        
+        file_ext = abs_archive_path.lower()
+        
+        # 创建临时目录
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
+        
+        if file_ext.endswith('.zip'):
+            import zipfile
+            with zipfile.ZipFile(abs_archive_path, 'r') as zip_ref:
+                # 查找并提取文件
+                for file_info in zip_ref.filelist:
+                    try:
+                        filename = file_info.filename.encode('cp437').decode('utf-8')
+                    except:
+                        try:
+                            filename = file_info.filename.encode('cp437').decode('gbk')
+                        except:
+                            filename = file_info.filename
+                    
+                    if filename == file_name:
+                        extracted_path = zip_ref.extract(file_info, temp_dir)
+                        
+                        @after_this_request
+                        def cleanup(response):
+                            try:
+                                shutil.rmtree(temp_dir)
+                            except:
+                                pass
+                            return response
+                        
+                        return send_file(extracted_path, as_attachment=True, download_name=os.path.basename(file_name))
+                        
+        elif file_ext.endswith(('.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tbz2', '.tar.xz', '.txz')):
+            import tarfile
+            with tarfile.open(abs_archive_path, 'r:*') as tar_ref:
+                member = tar_ref.getmember(file_name)
+                tar_ref.extract(member, temp_dir)
+                extracted_path = os.path.join(temp_dir, file_name)
+                
+                @after_this_request
+                def cleanup(response):
+                    try:
+                        shutil.rmtree(temp_dir)
+                    except:
+                        pass
+                    return response
+                
+                return send_file(extracted_path, as_attachment=True, download_name=os.path.basename(file_name))
+        
+        elif file_ext.endswith('.rar'):
+            import rarfile
+            with rarfile.RarFile(abs_archive_path, 'r') as rar_ref:
+                # 提取文件
+                rar_ref.extract(file_name, temp_dir)
+                extracted_path = os.path.join(temp_dir, file_name)
+                
+                @after_this_request
+                def cleanup(response):
+                    try:
+                        shutil.rmtree(temp_dir)
+                    except:
+                        pass
+                    return response
+                
+                return send_file(extracted_path, as_attachment=True, download_name=os.path.basename(file_name))
+                
+        elif file_ext.endswith('.7z'):
+            import py7zr
+            with py7zr.SevenZipFile(abs_archive_path, 'r') as sz_ref:
+                # 提取特定文件
+                sz_ref.extract(temp_dir, [file_name])
+                extracted_path = os.path.join(temp_dir, file_name)
+                
+                @after_this_request
+                def cleanup(response):
+                    try:
+                        shutil.rmtree(temp_dir)
+                    except:
+                        pass
+                    return response
+                
+                return send_file(extracted_path, as_attachment=True, download_name=os.path.basename(file_name))
+        
+        return "文件未找到", 404
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return f"下载失败: {str(e)}", 500
+
+# --- 辅助函数：将 Word 文档转换为 HTML ---
+def convert_docx_to_html(docx_path):
+    try:
+        from docx import Document
+        from docx.shared import Inches
+        
+        doc = Document(docx_path)
+        html_content = ['<div class="document-content">']
+        
+        # 处理段落
+        for para in doc.paragraphs:
+            if para.text.strip():
+                style = ''
+                if para.style.name.startswith('Heading'):
+                    level = para.style.name.replace('Heading ', '')
+                    html_content.append(f'<h{level}>{para.text}</h{level}>')
+                else:
+                    # 处理段落格式
+                    if para.alignment:
+                        align_map = {0: 'left', 1: 'center', 2: 'right', 3: 'justify'}
+                        style = f'text-align: {align_map.get(para.alignment, "left")};'
+                    html_content.append(f'<p style="{style}">{para.text}</p>')
+        
+        # 处理表格
+        for table in doc.tables:
+            html_content.append('<table class="table table-bordered">')
+            for row in table.rows:
+                html_content.append('<tr>')
+                for cell in row.cells:
+                    html_content.append(f'<td>{cell.text}</td>')
+                html_content.append('</tr>')
+            html_content.append('</table>')
+        
+        html_content.append('</div>')
+        return '\n'.join(html_content)
+    except Exception as e:
+        return f'<div class="alert alert-danger">Word 文档解析失败: {str(e)}</div>'
+
+# --- 辅助函数：将 Excel 表格转换为 HTML ---
+def convert_xlsx_to_html(xlsx_path):
+    try:
+        from openpyxl import load_workbook
+        
+        wb = load_workbook(xlsx_path, data_only=True)
+        html_content = ['<div class="document-content">']
+        
+        # 处理所有工作表
+        for sheet_name in wb.sheetnames:
+            sheet = wb[sheet_name]
+            html_content.append(f'<h3>工作表: {sheet_name}</h3>')
+            html_content.append('<div class="table-responsive">')
+            html_content.append('<table class="table table-bordered table-striped">')
+            
+            # 获取有数据的区域
+            max_row = sheet.max_row
+            max_col = sheet.max_column
+            
+            # 限制显示行数，避免过大
+            display_rows = min(max_row, 1000)
+            
+            for row_idx, row in enumerate(sheet.iter_rows(max_row=display_rows, max_col=max_col), 1):
+                html_content.append('<tr>')
+                for cell in row:
+                    value = cell.value if cell.value is not None else ''
+                    # 第一行作为表头
+                    tag = 'th' if row_idx == 1 else 'td'
+                    html_content.append(f'<{tag}>{value}</{tag}>')
+                html_content.append('</tr>')
+            
+            if max_row > display_rows:
+                html_content.append(f'<tr><td colspan="{max_col}" class="text-center text-muted">... 还有 {max_row - display_rows} 行未显示 ...</td></tr>')
+            
+            html_content.append('</table>')
+            html_content.append('</div>')
+        
+        html_content.append('</div>')
+        return '\n'.join(html_content)
+    except Exception as e:
+        return f'<div class="alert alert-danger">Excel 表格解析失败: {str(e)}</div>'
+
+# --- 辅助函数：将 PPT 转换为 HTML ---
+def convert_pptx_to_html(pptx_path):
+    try:
+        from pptx import Presentation
+        
+        prs = Presentation(pptx_path)
+        html_content = ['<div class="document-content presentation">']
+        
+        for slide_idx, slide in enumerate(prs.slides, 1):
+            html_content.append(f'<div class="slide" id="slide-{slide_idx}">')
+            html_content.append(f'<h3>幻灯片 {slide_idx}</h3>')
+            html_content.append('<div class="slide-content">')
+            
+            # 提取文本内容
+            for shape in slide.shapes:
+                if hasattr(shape, "text") and shape.text.strip():
+                    # 判断是否为标题
+                    if hasattr(shape, "is_placeholder") and shape.is_placeholder:
+                        html_content.append(f'<h4>{shape.text}</h4>')
+                    else:
+                        html_content.append(f'<p>{shape.text}</p>')
+                
+                # 处理表格
+                if shape.has_table:
+                    html_content.append('<table class="table table-bordered">')
+                    for row in shape.table.rows:
+                        html_content.append('<tr>')
+                        for cell in row.cells:
+                            html_content.append(f'<td>{cell.text}</td>')
+                        html_content.append('</tr>')
+                    html_content.append('</table>')
+            
+            html_content.append('</div>')
+            html_content.append('</div>')
+        
+        html_content.append('</div>')
+        return '\n'.join(html_content)
+    except Exception as e:
+        return f'<div class="alert alert-danger">PPT 文档解析失败: {str(e)}</div>'
+
 # --- 路由：预览文件 ---
 @app.route('/preview')
 @login_required
@@ -1023,21 +1312,43 @@ def preview():
         filename = os.path.basename(abs_path)
         file_type = get_file_type(filename)
         
-        # Office 文档和 PDF 使用新的预览页面
-        if file_type in ['office', 'pdf']:
-            # 生成可访问的文件 URL（用于 Office Online Viewer）
-            file_url = request.host_url + 'file?path=' + path
-            # URL 编码
-            from urllib.parse import quote
-            file_url = quote(file_url, safe=':/?&=')
+        # Office 文档转换为 HTML 预览
+        if file_type == 'office':
+            file_ext = os.path.splitext(filename.lower())[1]
+            html_content = ''
             
+            if file_ext in ['.docx', '.doc']:
+                html_content = convert_docx_to_html(abs_path)
+            elif file_ext in ['.xlsx', '.xls']:
+                html_content = convert_xlsx_to_html(abs_path)
+            elif file_ext in ['.pptx', '.ppt']:
+                html_content = convert_pptx_to_html(abs_path)
+            
+            # 获取主题和背景设置
+            theme = get_setting('theme', 'light')
+            bg_type = get_setting('background_type', 'image')
+            bg_image = get_setting('background_image', 'bg.png')
+            bg_color = get_setting('background_color', '#667eea')
+            
+            return render_template('office_preview.html',
+                                 file_path=path,
+                                 file_name=filename,
+                                 file_type=file_type,
+                                 html_content=html_content,
+                                 theme=theme,
+                                 bg_type=bg_type,
+                                 bg_image=bg_image,
+                                 bg_color=bg_color)
+        
+        # PDF 使用文档预览页面
+        elif file_type == 'pdf':
             return render_template('document_preview.html', 
                                  file_path=path, 
                                  file_name=filename,
                                  file_type=file_type,
-                                 file_url=file_url)
+                                 file_url='')
         
-        # 图片和视频使用原来的预览页面
+        # 图片、视频和音频使用原来的预览页面
         return render_template('preview.html', 
                              file_path=path, 
                              file_name=filename,
@@ -1062,6 +1373,8 @@ def get_file():
         if file_type == 'image':
             return send_file(abs_path)
         elif file_type == 'video':
+            return send_file(abs_path)
+        elif file_type == 'audio':
             return send_file(abs_path)
         elif file_type == 'pdf':
             return send_file(abs_path, mimetype='application/pdf')
@@ -1200,6 +1513,400 @@ def get_settings():
         'background_image': get_setting('background_image', 'bg.png'),
         'background_color': get_setting('background_color', '#667eea')
     })
+
+# --- 接口：查看压缩包内容 ---
+@app.route('/api/archive-content', methods=['POST'])
+@login_required
+def get_archive_content():
+    data = request.json
+    file_path = data.get('path')
+    
+    try:
+        abs_file_path = get_safe_path(file_path)
+        
+        if not os.path.exists(abs_file_path):
+            return jsonify({'status': 'error', 'msg': '文件不存在'})
+        
+        if not os.path.isfile(abs_file_path):
+            return jsonify({'status': 'error', 'msg': '不是有效的文件'})
+        
+        if not is_archive(abs_file_path):
+            return jsonify({'status': 'error', 'msg': '不是压缩包文件'})
+        
+        file_list = []
+        file_ext = abs_file_path.lower()
+        
+        if file_ext.endswith('.zip'):
+            import zipfile
+            with zipfile.ZipFile(abs_file_path, 'r') as zip_ref:
+                for file_info in zip_ref.filelist:
+                    try:
+                        # 尝试解码文件名
+                        try:
+                            filename = file_info.filename.encode('cp437').decode('utf-8')
+                        except:
+                            try:
+                                filename = file_info.filename.encode('cp437').decode('gbk')
+                            except:
+                                filename = file_info.filename
+                        
+                        # 跳过空文件夹（只有路径分隔符的条目）
+                        if not filename or filename.strip('/') == '':
+                            continue
+                        
+                        is_dir = filename.endswith('/')
+                        size = file_info.file_size if not is_dir else 0
+                        
+                        # 跳过大小为0的目录条目（空文件夹）
+                        if is_dir and size == 0:
+                            continue
+                        
+                        # 格式化大小
+                        if size < 1024:
+                            size_str = f"{size} B"
+                        elif size < 1024 * 1024:
+                            size_str = f"{size/1024:.2f} KB"
+                        else:
+                            size_str = f"{size/1024/1024:.2f} MB"
+                        
+                        file_list.append({
+                            'name': filename.rstrip('/'),  # 移除末尾的斜杠
+                            'size': size_str,
+                            'size_bytes': size,
+                            'is_dir': is_dir,
+                            'compressed_size': file_info.compress_size
+                        })
+                    except Exception as e:
+                        print(f"处理文件信息失败: {e}")
+                        continue
+                        
+        elif file_ext.endswith(('.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tbz2', '.tar.xz', '.txz')):
+            import tarfile
+            with tarfile.open(abs_file_path, 'r:*') as tar_ref:
+                for member in tar_ref.getmembers():
+                    # 跳过空文件夹
+                    if not member.name or member.name.strip('/') == '':
+                        continue
+                    
+                    is_dir = member.isdir()
+                    size = member.size if not is_dir else 0
+                    
+                    # 跳过大小为0的目录条目（空文件夹）
+                    if is_dir and size == 0:
+                        continue
+                    
+                    # 格式化大小
+                    if size < 1024:
+                        size_str = f"{size} B"
+                    elif size < 1024 * 1024:
+                        size_str = f"{size/1024:.2f} KB"
+                    else:
+                        size_str = f"{size/1024/1024:.2f} MB"
+                    
+                    file_list.append({
+                        'name': member.name.rstrip('/'),
+                        'size': size_str,
+                        'size_bytes': size,
+                        'is_dir': is_dir,
+                        'compressed_size': 0
+                    })
+                    
+        elif file_ext.endswith('.rar'):
+            try:
+                import rarfile
+                with rarfile.RarFile(abs_file_path, 'r') as rar_ref:
+                    for file_info in rar_ref.infolist():
+                        # 跳过空文件夹
+                        if not file_info.filename or file_info.filename.strip('/') == '':
+                            continue
+                        
+                        is_dir = file_info.isdir()
+                        size = file_info.file_size if not is_dir else 0
+                        
+                        # 跳过大小为0的目录条目（空文件夹）
+                        if is_dir and size == 0:
+                            continue
+                        
+                        # 格式化大小
+                        if size < 1024:
+                            size_str = f"{size} B"
+                        elif size < 1024 * 1024:
+                            size_str = f"{size/1024:.2f} KB"
+                        else:
+                            size_str = f"{size/1024/1024:.2f} MB"
+                        
+                        file_list.append({
+                            'name': file_info.filename.rstrip('/'),
+                            'size': size_str,
+                            'size_bytes': size,
+                            'is_dir': is_dir,
+                            'compressed_size': file_info.compress_size
+                        })
+            except ImportError:
+                return jsonify({'status': 'error', 'msg': 'RAR 格式需要安装 rarfile 库，请运行: pip install rarfile'})
+            except Exception as e:
+                return jsonify({'status': 'error', 'msg': f'RAR 文件读取失败: {str(e)}'})
+                
+        elif file_ext.endswith('.7z'):
+            try:
+                import py7zr
+                with py7zr.SevenZipFile(abs_file_path, 'r') as sz_ref:
+                    for name, file_info in sz_ref.list():
+                        # 跳过空文件夹
+                        if not name or name.strip('/') == '':
+                            continue
+                        
+                        is_dir = file_info.is_directory
+                        size = file_info.uncompressed if not is_dir else 0
+                        
+                        # 跳过大小为0的目录条目（空文件夹）
+                        if is_dir and size == 0:
+                            continue
+                        
+                        # 格式化大小
+                        if size < 1024:
+                            size_str = f"{size} B"
+                        elif size < 1024 * 1024:
+                            size_str = f"{size/1024:.2f} KB"
+                        else:
+                            size_str = f"{size/1024/1024:.2f} MB"
+                        
+                        file_list.append({
+                            'name': name.rstrip('/'),
+                            'size': size_str,
+                            'size_bytes': size,
+                            'is_dir': is_dir,
+                            'compressed_size': file_info.compressed if hasattr(file_info, 'compressed') else 0
+                        })
+            except ImportError:
+                return jsonify({'status': 'error', 'msg': '7Z 格式需要安装 py7zr 库，请运行: pip install py7zr'})
+            except Exception as e:
+                return jsonify({'status': 'error', 'msg': f'7Z 文件读取失败: {str(e)}'})
+                
+        else:
+            return jsonify({'status': 'error', 'msg': '不支持查看此压缩格式的内容'})
+        
+        # 过滤掉重复的条目（有些压缩包会同时包含文件和其父目录）
+        seen_names = set()
+        filtered_list = []
+        for item in file_list:
+            if item['name'] not in seen_names:
+                seen_names.add(item['name'])
+                filtered_list.append(item)
+        
+        file_list = filtered_list
+        
+        # 计算总大小和文件数量
+        total_size = sum(f['size_bytes'] for f in file_list if not f['is_dir'])
+        file_count = len([f for f in file_list if not f['is_dir']])
+        folder_count = len([f for f in file_list if f['is_dir']])
+        
+        if total_size < 1024:
+            total_size_str = f"{total_size} B"
+        elif total_size < 1024 * 1024:
+            total_size_str = f"{total_size/1024:.2f} KB"
+        else:
+            total_size_str = f"{total_size/1024/1024:.2f} MB"
+        
+        return jsonify({
+            'status': 'success',
+            'files': file_list,
+            'total_size': total_size_str,
+            'file_count': file_count,
+            'folder_count': folder_count
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'msg': f'读取失败: {str(e)}'})
+
+# --- 接口：从压缩包中提取单个文件 ---
+@app.route('/api/extract-file', methods=['POST'])
+@login_required
+def extract_single_file():
+    data = request.json
+    archive_path = data.get('archive_path')
+    file_name = data.get('file_name')
+    
+    try:
+        abs_archive_path = get_safe_path(archive_path)
+        
+        if not os.path.exists(abs_archive_path):
+            return jsonify({'status': 'error', 'msg': '压缩包不存在'})
+        
+        file_ext = abs_archive_path.lower()
+        
+        # 创建临时文件
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
+        
+        if file_ext.endswith('.zip'):
+            import zipfile
+            with zipfile.ZipFile(abs_archive_path, 'r') as zip_ref:
+                # 查找文件
+                for file_info in zip_ref.filelist:
+                    try:
+                        filename = file_info.filename.encode('cp437').decode('utf-8')
+                    except:
+                        try:
+                            filename = file_info.filename.encode('cp437').decode('gbk')
+                        except:
+                            filename = file_info.filename
+                    
+                    if filename == file_name:
+                        # 提取文件到临时目录
+                        extracted_path = zip_ref.extract(file_info, temp_dir)
+                        
+                        # 返回文件路径供下载
+                        return jsonify({
+                            'status': 'success',
+                            'temp_path': extracted_path,
+                            'file_name': os.path.basename(file_name)
+                        })
+                        
+        elif file_ext.endswith(('.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tbz2', '.tar.xz', '.txz')):
+            import tarfile
+            with tarfile.open(abs_archive_path, 'r:*') as tar_ref:
+                member = tar_ref.getmember(file_name)
+                tar_ref.extract(member, temp_dir)
+                extracted_path = os.path.join(temp_dir, file_name)
+                
+                return jsonify({
+                    'status': 'success',
+                    'temp_path': extracted_path,
+                    'file_name': os.path.basename(file_name)
+                })
+        
+        return jsonify({'status': 'error', 'msg': '文件未找到'})
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'msg': f'提取失败: {str(e)}'})
+
+# --- 接口：解压压缩包 ---
+@app.route('/api/extract', methods=['POST'])
+@login_required
+def extract_archive():
+    data = request.json
+    file_path = data.get('path')  # 压缩包路径
+    extract_to = data.get('extract_to', '')  # 解压到的目标文件夹，默认为当前目录
+    
+    try:
+        abs_file_path = get_safe_path(file_path)
+        
+        # 检查文件是否存在
+        if not os.path.exists(abs_file_path):
+            return jsonify({'status': 'error', 'msg': '文件不存在'})
+        
+        if not os.path.isfile(abs_file_path):
+            return jsonify({'status': 'error', 'msg': '不是有效的文件'})
+        
+        # 检查是否为压缩包
+        if not is_archive(abs_file_path):
+            return jsonify({'status': 'error', 'msg': '不是支持的压缩包格式'})
+        
+        # 确定解压目标目录
+        if extract_to:
+            abs_extract_dir = get_safe_path(extract_to)
+        else:
+            # 默认解压到压缩包所在目录
+            abs_extract_dir = os.path.dirname(abs_file_path)
+        
+        # 创建以压缩包名称命名的文件夹
+        archive_name = os.path.splitext(os.path.basename(abs_file_path))[0]
+        # 处理 .tar.gz 等双扩展名
+        if archive_name.endswith('.tar'):
+            archive_name = os.path.splitext(archive_name)[0]
+        
+        extract_folder = os.path.join(abs_extract_dir, archive_name)
+        
+        # 如果目标文件夹已存在，添加数字后缀
+        counter = 1
+        original_extract_folder = extract_folder
+        while os.path.exists(extract_folder):
+            extract_folder = f"{original_extract_folder}_{counter}"
+            counter += 1
+        
+        os.makedirs(extract_folder, exist_ok=True)
+        
+        # 根据文件类型解压
+        file_ext = abs_file_path.lower()
+        
+        if file_ext.endswith('.zip'):
+            # 解压 ZIP 文件
+            import zipfile
+            with zipfile.ZipFile(abs_file_path, 'r') as zip_ref:
+                # 处理中文文件名编码问题
+                for file_info in zip_ref.filelist:
+                    try:
+                        # 尝试使用 UTF-8 解码
+                        file_info.filename = file_info.filename.encode('cp437').decode('utf-8')
+                    except:
+                        try:
+                            # 尝试使用 GBK 解码
+                            file_info.filename = file_info.filename.encode('cp437').decode('gbk')
+                        except:
+                            pass
+                zip_ref.extractall(extract_folder)
+                
+        elif file_ext.endswith(('.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tbz2', '.tar.xz', '.txz')):
+            # 解压 TAR 文件
+            import tarfile
+            with tarfile.open(abs_file_path, 'r:*') as tar_ref:
+                tar_ref.extractall(extract_folder)
+                
+        elif file_ext.endswith('.gz') and not file_ext.endswith('.tar.gz'):
+            # 解压单个 GZ 文件
+            import gzip
+            output_file = os.path.join(extract_folder, os.path.splitext(os.path.basename(abs_file_path))[0])
+            with gzip.open(abs_file_path, 'rb') as f_in:
+                with open(output_file, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+                    
+        elif file_ext.endswith('.bz2') and not file_ext.endswith('.tar.bz2'):
+            # 解压单个 BZ2 文件
+            import bz2
+            output_file = os.path.join(extract_folder, os.path.splitext(os.path.basename(abs_file_path))[0])
+            with bz2.open(abs_file_path, 'rb') as f_in:
+                with open(output_file, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+                    
+        elif file_ext.endswith('.rar'):
+            # 解压 RAR 文件
+            try:
+                import rarfile
+                with rarfile.RarFile(abs_file_path, 'r') as rar_ref:
+                    rar_ref.extractall(extract_folder)
+            except ImportError:
+                return jsonify({'status': 'error', 'msg': 'RAR 格式需要安装 rarfile 库，请运行: pip install rarfile'})
+            except Exception as e:
+                return jsonify({'status': 'error', 'msg': f'RAR 解压失败: {str(e)}'})
+            
+        elif file_ext.endswith('.7z'):
+            # 解压 7Z 文件
+            try:
+                import py7zr
+                with py7zr.SevenZipFile(abs_file_path, 'r') as sz_ref:
+                    sz_ref.extractall(extract_folder)
+            except ImportError:
+                return jsonify({'status': 'error', 'msg': '7Z 格式需要安装 py7zr 库，请运行: pip install py7zr'})
+            except Exception as e:
+                return jsonify({'status': 'error', 'msg': f'7Z 解压失败: {str(e)}'})
+            
+        else:
+            return jsonify({'status': 'error', 'msg': '不支持的压缩格式'})
+        
+        return jsonify({
+            'status': 'success', 
+            'msg': f'解压成功，文件已解压到: {os.path.basename(extract_folder)}'
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'msg': f'解压失败: {str(e)}'})
 
 # --- 接口：清空缓存 ---
 @app.route('/api/clear-cache', methods=['POST'])
