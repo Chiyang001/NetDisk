@@ -100,11 +100,14 @@ with app.app_context():
             print(f"数据库更新失败（可能已经更新过）: {alter_error}")
     
     # 初始化默认设置
-    is_first_run = False
     if not Settings.query.filter_by(key='password_hash').first():
         default_hash = generate_password_hash(DEFAULT_PASSWORD)
         db.session.add(Settings(key='password_hash', value=default_hash))
-        is_first_run = True
+        print("\n" + "="*60)
+        print("🔐 首次运行检测到！")
+        print(f"📝 默认登录密码：{DEFAULT_PASSWORD}")
+        print("⚠️  请立即登录并修改密码以确保系统安全！")
+        print("="*60 + "\n")
     
     if not Settings.query.filter_by(key='theme').first():
         db.session.add(Settings(key='theme', value='light'))
@@ -125,14 +128,6 @@ with app.app_context():
         db.session.add(Settings(key='security_answer', value=''))
     
     db.session.commit()
-    
-    # 首次运行时在控制台输出默认密码
-    if is_first_run:
-        print("\n" + "="*60)
-        print("🔐 首次运行检测到！")
-        print(f"📝 默认登录密码：{DEFAULT_PASSWORD}")
-        print("⚠️  请立即登录并修改密码以确保系统安全！")
-        print("="*60 + "\n")
 
 # --- 辅助函数：获取设置 ---
 def get_setting(key, default=None):
