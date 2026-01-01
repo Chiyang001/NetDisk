@@ -2230,17 +2230,22 @@ def clear_all_data():
         # 4. 清空数据库中的分享链接
         ShareLink.query.delete()
         
-        # 5. 重置所有设置为默认值
+        # 5. 清空密码重置令牌
+        PasswordResetToken.query.delete()
+        
+        # 6. 重置所有设置为默认值
         default_hash = generate_password_hash(DEFAULT_PASSWORD)
         set_setting('password_hash', default_hash)
         set_setting('theme', 'light')
         set_setting('background_type', 'image')
         set_setting('background_image', 'bg.png')
         set_setting('background_color', '#667eea')
+        set_setting('security_question', '')
+        set_setting('security_answer', '')
         
         db.session.commit()
         
-        # 6. 清除当前 session，强制重新登录
+        # 7. 清除当前 session，强制重新登录
         session.clear()
         
         return jsonify({
