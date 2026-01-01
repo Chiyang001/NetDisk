@@ -192,6 +192,36 @@
             <button class="btn btn-glass" onclick="changePassword()">修改密码</button>
         </div>
         
+        <!-- 安全问题设置 -->
+        <div class="settings-card">
+            <h5><i class="bi bi-shield-check me-2"></i>安全问题设置</h5>
+            <p class="text-white" style="font-size: 0.9rem; opacity: 0.8;">
+                设置安全问题后，可以在忘记密码时通过回答问题来重置密码
+            </p>
+            <div class="mb-3">
+                <label class="form-label">安全问题</label>
+                <select class="form-select" id="security-question-select" onchange="toggleCustomQuestion()">
+                    <option value="">选择一个安全问题</option>
+                    <option value="您的出生地是？">您的出生地是？</option>
+                    <option value="您母亲的姓名是？">您母亲的姓名是？</option>
+                    <option value="您的小学名称是？">您的小学名称是？</option>
+                    <option value="您最喜欢的电影是？">您最喜欢的电影是？</option>
+                    <option value="您的宠物名字是？">您的宠物名字是？</option>
+                    <option value="custom">自定义问题...</option>
+                </select>
+            </div>
+            <div class="mb-3" id="custom-question-section" style="display: none;">
+                <label class="form-label">自定义问题</label>
+                <input type="text" class="form-control" id="custom-question" placeholder="输入您的自定义问题">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">答案</label>
+                <input type="text" class="form-control" id="security-answer" placeholder="输入答案（至少2个字符）">
+                <small class="text-white" style="opacity: 0.7;">答案不区分大小写</small>
+            </div>
+            <button class="btn btn-glass" onclick="setSecurityQuestion()">保存安全问题</button>
+        </div>
+        
         <!-- 系统维护 -->
         <div class="settings-card">
             <h5><i class="bi bi-tools me-2"></i>系统维护</h5>
@@ -215,7 +245,7 @@
                     • 所有云盘文件<br>
                     • 所有分享链接<br>
                     • 所有临时文件<br>
-                    • 密码重置为默认密码 123456<br>
+                    • 密码重置为默认密码<br>
                     • 所有设置恢复默认<br>
                     <strong class="text-danger">此操作不可恢复！</strong>
                 </p>
@@ -360,6 +390,59 @@ function changePassword() {
     });
 }
 
+function toggleCustomQuestion() {
+    const select = document.getElementById('security-question-select');
+    const customSection = document.getElementById('custom-question-section');
+    customSection.style.display = select.value === 'custom' ? 'block' : 'none';
+}
+
+function setSecurityQuestion() {
+    const select = document.getElementById('security-question-select');
+    let question = select.value;
+    
+    if (question === 'custom') {
+        question = document.getElementById('custom-question').value.trim();
+        if (!question) {
+            alert('请输入自定义问题');
+            return;
+        }
+    } else if (!question) {
+        alert('请选择或输入安全问题');
+        return;
+    }
+    
+    const answer = document.getElementById('security-answer').value.trim();
+    
+    if (!answer) {
+        alert('请输入答案');
+        return;
+    }
+    
+    if (answer.length < 2) {
+        alert('答案至少需要2个字符');
+        return;
+    }
+    
+    fetch('/api/set-security-question', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ question: question, answer: answer })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('安全问题设置成功！\n\n现在您可以在忘记密码时使用安全问题来重置密码。');
+            // 清空输入框
+            document.getElementById('security-question-select').value = '';
+            document.getElementById('custom-question').value = '';
+            document.getElementById('security-answer').value = '';
+            document.getElementById('custom-question-section').style.display = 'none';
+        } else {
+            alert('设置失败: ' + data.msg);
+        }
+    });
+}
+
 function clearCache() {
     if (!confirm('确定要清空缓存吗？\n\n这将删除所有临时文件（ZIP 压缩包、旧背景图片等），不会影响云盘文件和设置。')) {
         return;
@@ -385,7 +468,7 @@ function clearAllData() {
                    '• 删除所有云盘文件\n' +
                    '• 删除所有分享链接\n' +
                    '• 删除所有临时文件\n' +
-                   '• 密码重置为默认密码 123456\n' +
+                   '• 密码重置为默认密码\n' +
                    '• 所有设置恢复默认\n\n' +
                    '此操作不可恢复！\n\n' +
                    '如果确定要继续，请点击"确定"';

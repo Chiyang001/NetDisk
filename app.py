@@ -69,6 +69,14 @@ class Settings(db.Model):
     value = db.Column(db.Text, nullable=True)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
+# --- 数据库模型：密码重置令牌 ---
+class PasswordResetToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(32), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    expire_at = db.Column(db.DateTime, nullable=False)
+    used = db.Column(db.Boolean, default=False)
+
 # 初始化数据库
 with app.app_context():
     db.create_all()
@@ -92,9 +100,11 @@ with app.app_context():
             print(f"数据库更新失败（可能已经更新过）: {alter_error}")
     
     # 初始化默认设置
+    is_first_run = False
     if not Settings.query.filter_by(key='password_hash').first():
         default_hash = generate_password_hash(DEFAULT_PASSWORD)
         db.session.add(Settings(key='password_hash', value=default_hash))
+        is_first_run = True
     
     if not Settings.query.filter_by(key='theme').first():
         db.session.add(Settings(key='theme', value='light'))
@@ -108,7 +118,21 @@ with app.app_context():
     if not Settings.query.filter_by(key='background_color').first():
         db.session.add(Settings(key='background_color', value='#667eea'))
     
+    if not Settings.query.filter_by(key='security_question').first():
+        db.session.add(Settings(key='security_question', value=''))
+    
+    if not Settings.query.filter_by(key='security_answer').first():
+        db.session.add(Settings(key='security_answer', value=''))
+    
     db.session.commit()
+    
+    # 首次运行时在控制台输出默认密码
+    if is_first_run:
+        print("\n" + "="*60)
+        print("🔐 首次运行检测到！")
+        print(f"📝 默认登录密码：{DEFAULT_PASSWORD}")
+        print("⚠️  请立即登录并修改密码以确保系统安全！")
+        print("="*60 + "\n")
 
 # --- 辅助函数：获取设置 ---
 def get_setting(key, default=None):
@@ -237,6 +261,14 @@ def login():
     if request.method == 'POST':
         password = request.form.get('password')
         if verify_password(password):
+            # 检查是否已设置安全问题
+            security_question = get_setting('security_question', '')
+            if not security_question:
+                # 未设置安全问题，标记需要设置并跳转到设置页面
+                session['temp_logged_in'] = True  # 临时登录状态
+                session.permanent = True
+                return redirect(url_for('setup_security'))
+            
             session['logged_in'] = True
             session.permanent = True  # 使 session 持久化
             return redirect(url_for('index'))
@@ -253,7 +285,8 @@ def login():
                                  bg_type=bg_type, 
                                  bg_image=bg_image, 
                                  bg_color=bg_color,
-                                 is_default_password=is_default_password())
+                                 is_default_password=is_default_password(),
+                                 reset_success=False)
     
     # 获取主题和背景设置
     theme = get_setting('theme', 'light')
@@ -261,18 +294,228 @@ def login():
     bg_image = get_setting('background_image', 'bg.png')
     bg_color = get_setting('background_color', '#667eea')
     
+    # 检查是否有重置成功的标记
+    reset_success = request.args.get('reset') == 'success'
+    
     return render_template('login.html', 
                          theme=theme, 
                          bg_type=bg_type, 
                          bg_image=bg_image, 
                          bg_color=bg_color,
-                         is_default_password=is_default_password())
+                         is_default_password=is_default_password(),
+                         reset_success=reset_success)
 
 # --- 路由：登出 ---
 @app.route('/logout')
 def logout():
     session.pop('logged_in', None)
+    session.pop('temp_logged_in', None)
     return redirect(url_for('login'))
+
+# --- 路由：设置安全问题（首次登录必须设置）---
+@app.route('/setup-security', methods=['GET', 'POST'])
+def setup_security():
+    # 检查是否有临时登录状态
+    if not session.get('temp_logged_in'):
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        question = request.form.get('question', '').strip()
+        custom_question = request.form.get('custom_question', '').strip()
+        answer = request.form.get('answer', '').strip()
+        
+        # 如果选择了自定义问题
+        if question == 'custom':
+            question = custom_question
+        
+        if not question or not answer:
+            theme = get_setting('theme', 'light')
+            bg_type = get_setting('background_type', 'image')
+            bg_image = get_setting('background_image', 'bg.png')
+            bg_color = get_setting('background_color', '#667eea')
+            
+            return render_template('setup_security.html',
+                                 error='问题和答案不能为空',
+                                 theme=theme,
+                                 bg_type=bg_type,
+                                 bg_image=bg_image,
+                                 bg_color=bg_color)
+        
+        if len(answer) < 2:
+            theme = get_setting('theme', 'light')
+            bg_type = get_setting('background_type', 'image')
+            bg_image = get_setting('background_image', 'bg.png')
+            bg_color = get_setting('background_color', '#667eea')
+            
+            return render_template('setup_security.html',
+                                 error='答案至少需要2个字符',
+                                 theme=theme,
+                                 bg_type=bg_type,
+                                 bg_image=bg_image,
+                                 bg_color=bg_color)
+        
+        # 保存安全问题
+        set_setting('security_question', question)
+        set_setting('security_answer', answer)
+        
+        # 清除临时登录状态，设置正式登录状态
+        session.pop('temp_logged_in', None)
+        session['logged_in'] = True
+        session.permanent = True
+        
+        return redirect(url_for('index'))
+    
+    # GET 请求
+    theme = get_setting('theme', 'light')
+    bg_type = get_setting('background_type', 'image')
+    bg_image = get_setting('background_image', 'bg.png')
+    bg_color = get_setting('background_color', '#667eea')
+    
+    return render_template('setup_security.html',
+                         theme=theme,
+                         bg_type=bg_type,
+                         bg_image=bg_image,
+                         bg_color=bg_color)
+
+# --- 路由：忘记密码页面 ---
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        security_answer = request.form.get('security_answer', '').strip()
+        
+        # 获取设置的安全问题答案
+        saved_answer = get_setting('security_answer', '')
+        
+        if not saved_answer:
+            theme = get_setting('theme', 'light')
+            bg_type = get_setting('background_type', 'image')
+            bg_image = get_setting('background_image', 'bg.png')
+            bg_color = get_setting('background_color', '#667eea')
+            
+            return render_template('forgot_password.html',
+                                 error='管理员未设置安全问题，请联系管理员重置密码',
+                                 theme=theme,
+                                 bg_type=bg_type,
+                                 bg_image=bg_image,
+                                 bg_color=bg_color,
+                                 security_question=get_setting('security_question', ''))
+        
+        # 验证答案（不区分大小写）
+        if security_answer.lower() == saved_answer.lower():
+            # 生成重置令牌
+            token = shortuuid.uuid()
+            expire_at = datetime.now() + timedelta(minutes=30)  # 30分钟有效期
+            
+            reset_token = PasswordResetToken(token=token, expire_at=expire_at)
+            db.session.add(reset_token)
+            db.session.commit()
+            
+            # 重定向到重置密码页面
+            return redirect(url_for('reset_password', token=token))
+        else:
+            theme = get_setting('theme', 'light')
+            bg_type = get_setting('background_type', 'image')
+            bg_image = get_setting('background_image', 'bg.png')
+            bg_color = get_setting('background_color', '#667eea')
+            
+            return render_template('forgot_password.html',
+                                 error='安全问题答案错误',
+                                 theme=theme,
+                                 bg_type=bg_type,
+                                 bg_image=bg_image,
+                                 bg_color=bg_color,
+                                 security_question=get_setting('security_question', ''))
+    
+    # GET 请求
+    theme = get_setting('theme', 'light')
+    bg_type = get_setting('background_type', 'image')
+    bg_image = get_setting('background_image', 'bg.png')
+    bg_color = get_setting('background_color', '#667eea')
+    security_question = get_setting('security_question', '')
+    
+    if not security_question:
+        return render_template('forgot_password.html',
+                             error='管理员未设置安全问题，请联系管理员重置密码',
+                             theme=theme,
+                             bg_type=bg_type,
+                             bg_image=bg_image,
+                             bg_color=bg_color,
+                             security_question='')
+    
+    return render_template('forgot_password.html',
+                         theme=theme,
+                         bg_type=bg_type,
+                         bg_image=bg_image,
+                         bg_color=bg_color,
+                         security_question=security_question)
+
+# --- 路由：重置密码页面 ---
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    # 验证令牌
+    reset_token = PasswordResetToken.query.filter_by(token=token, used=False).first()
+    
+    if not reset_token:
+        return "重置链接无效或已使用", 403
+    
+    if datetime.now() > reset_token.expire_at:
+        return "重置链接已过期，请重新申请", 403
+    
+    if request.method == 'POST':
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+        
+        if not new_password or len(new_password) < 6:
+            theme = get_setting('theme', 'light')
+            bg_type = get_setting('background_type', 'image')
+            bg_image = get_setting('background_image', 'bg.png')
+            bg_color = get_setting('background_color', '#667eea')
+            
+            return render_template('reset_password.html',
+                                 error='密码至少需要6位',
+                                 token=token,
+                                 theme=theme,
+                                 bg_type=bg_type,
+                                 bg_image=bg_image,
+                                 bg_color=bg_color)
+        
+        if new_password != confirm_password:
+            theme = get_setting('theme', 'light')
+            bg_type = get_setting('background_type', 'image')
+            bg_image = get_setting('background_image', 'bg.png')
+            bg_color = get_setting('background_color', '#667eea')
+            
+            return render_template('reset_password.html',
+                                 error='两次输入的密码不一致',
+                                 token=token,
+                                 theme=theme,
+                                 bg_type=bg_type,
+                                 bg_image=bg_image,
+                                 bg_color=bg_color)
+        
+        # 更新密码
+        new_hash = generate_password_hash(new_password)
+        set_setting('password_hash', new_hash)
+        
+        # 标记令牌为已使用
+        reset_token.used = True
+        db.session.commit()
+        
+        # 重定向到登录页面
+        return redirect(url_for('login') + '?reset=success')
+    
+    # GET 请求
+    theme = get_setting('theme', 'light')
+    bg_type = get_setting('background_type', 'image')
+    bg_image = get_setting('background_image', 'bg.png')
+    bg_color = get_setting('background_color', '#667eea')
+    
+    return render_template('reset_password.html',
+                         token=token,
+                         theme=theme,
+                         bg_type=bg_type,
+                         bg_image=bg_image,
+                         bg_color=bg_color)
 
 # --- 路由：设置页面 ---
 @app.route('/settings')
@@ -1458,6 +1701,25 @@ def toggle_theme():
     set_setting('theme', theme)
     return jsonify({'status': 'success', 'theme': theme})
 
+# --- 接口：设置安全问题 ---
+@app.route('/api/set-security-question', methods=['POST'])
+@login_required
+def set_security_question():
+    data = request.json
+    question = data.get('question', '').strip()
+    answer = data.get('answer', '').strip()
+    
+    if not question or not answer:
+        return jsonify({'status': 'error', 'msg': '问题和答案不能为空'})
+    
+    if len(answer) < 2:
+        return jsonify({'status': 'error', 'msg': '答案至少需要2个字符'})
+    
+    set_setting('security_question', question)
+    set_setting('security_answer', answer)
+    
+    return jsonify({'status': 'success', 'msg': '安全问题设置成功'})
+
 # --- 接口：更新背景设置 ---
 @app.route('/api/update-background', methods=['POST'])
 @login_required
@@ -1988,7 +2250,7 @@ def clear_all_data():
         
         return jsonify({
             'status': 'success', 
-            'msg': '所有数据已清空，密码已重置为默认密码 123456'
+            'msg': '所有数据已清空，密码已重置为默认密码'
         })
     except Exception as e:
         db.session.rollback()

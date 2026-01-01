@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>登录 - 私有云盘</title>
+    <title>设置安全问题 - 私有云盘</title>
     <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
         :root[data-theme="light"] {
             --bg-overlay: rgba(102, 126, 234, 0.3);
@@ -68,7 +69,7 @@
             50% { transform: translateY(20px); }
         }
         
-        .login-card {
+        .setup-card {
             background: var(--card-bg);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
@@ -77,18 +78,26 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             padding: 50px 40px;
             width: 100%;
-            max-width: 420px;
+            max-width: 500px;
             position: relative;
             z-index: 10;
         }
         
-        .login-title {
+        .setup-title {
             text-align: center;
-            margin-bottom: 35px;
+            margin-bottom: 15px;
             color: var(--text-color);
             font-weight: bold;
             font-size: 28px;
             text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .setup-subtitle {
+            text-align: center;
+            margin-bottom: 30px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            line-height: 1.6;
         }
         
         .form-label {
@@ -97,7 +106,7 @@
             margin-bottom: 10px;
         }
         
-        .form-control {
+        .form-control, .form-select {
             background: var(--input-bg);
             border: 1px solid var(--input-border);
             color: var(--text-color);
@@ -105,7 +114,7 @@
             -webkit-backdrop-filter: blur(10px);
         }
         
-        .form-control:focus {
+        .form-control:focus, .form-select:focus {
             background: var(--input-bg);
             border-color: var(--input-border);
             color: var(--text-color);
@@ -116,7 +125,12 @@
             color: rgba(255, 255, 255, 0.6);
         }
         
-        .btn-login {
+        .form-select option {
+            background: #2c3e50;
+            color: white;
+        }
+        
+        .btn-submit {
             width: 100%;
             background: var(--input-bg);
             backdrop-filter: blur(10px);
@@ -129,7 +143,7 @@
             transition: all 0.3s ease;
         }
         
-        .btn-login:hover {
+        .btn-submit:hover {
             background: rgba(255, 255, 255, 0.35);
             border-color: rgba(255, 255, 255, 0.5);
             color: var(--text-color);
@@ -145,76 +159,107 @@
             color: var(--text-color);
         }
         
+        .alert-info {
+            background: rgba(13, 202, 240, 0.2);
+            border: 1px solid rgba(13, 202, 240, 0.4);
+        }
+        
         .text-muted {
             color: rgba(255, 255, 255, 0.7) !important;
         }
         
+        .security-hint {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 5px;
+        }
+        
+        .icon-shield {
+            font-size: 48px;
+            color: var(--text-color);
+            text-align: center;
+            margin-bottom: 20px;
+            opacity: 0.9;
+        }
+        
         @media (max-width: 768px) {
-            .login-card {
+            .setup-card {
                 padding: 30px 25px;
                 max-width: 95%;
                 margin: 0 10px;
             }
             
-            .login-title {
+            .setup-title {
                 font-size: 22px;
-                margin-bottom: 25px;
-            }
-            
-            .form-control {
-                font-size: 16px;
-                padding: 12px;
-            }
-            
-            .btn-login {
-                padding: 12px;
-                font-size: 16px;
             }
         }
     </style>
 </head>
 <body>
 
-<div class="login-card">
-    <h3 class="login-title">私有云盘登录</h3>
+<div class="setup-card">
+    <div class="icon-shield">
+        <i class="bi bi-shield-lock"></i>
+    </div>
+    
+    <h3 class="setup-title">设置安全问题</h3>
+    <p class="setup-subtitle">
+        为了保护您的账户安全，请设置一个安全问题。<br>
+        当您忘记密码时，可以通过回答安全问题来重置密码。
+    </p>
     
     {% if error %}
     <div class="alert alert-danger" role="alert">
-        {{ error }}
+        <i class="bi bi-exclamation-triangle me-2"></i>{{ error }}
     </div>
     {% endif %}
     
-    {% if reset_success %}
-    <div class="alert alert-success" role="alert" style="background: rgba(40, 167, 69, 0.2); border-color: rgba(40, 167, 69, 0.4);">
-        密码重置成功！请使用新密码登录
+    <div class="alert alert-info mb-4" role="alert">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>重要提示：</strong>请选择一个您能记住答案的问题，并妥善保管答案。
     </div>
-    {% endif %}
     
-    {% if is_default_password %}
-    <div class="alert alert-warning" role="alert" style="background: rgba(255, 193, 7, 0.2); border-color: rgba(255, 193, 7, 0.4);">
-        <i class="bi bi-exclamation-triangle me-2"></i>系统检测到您正在使用默认密码<br>
-        <small>为了安全，请登录后立即修改密码</small>
-    </div>
-    {% endif %}
-    
-    <form method="POST" action="/login">
+    <form method="POST" action="/setup-security">
         <div class="mb-3">
-            <label for="password" class="form-label">请输入密码</label>
-            <input type="password" class="form-control form-control-lg" id="password" name="password" 
-                   placeholder="输入密码" required autofocus>
+            <label for="question" class="form-label">
+                <i class="bi bi-question-circle me-2"></i>选择安全问题
+            </label>
+            <select class="form-select form-select-lg" id="question" name="question" 
+                    onchange="toggleCustomQuestion()" required>
+                <option value="">请选择一个问题...</option>
+                <option value="您的出生地是？">您的出生地是？</option>
+                <option value="您母亲的姓名是？">您母亲的姓名是？</option>
+                <option value="您的小学名称是？">您的小学名称是？</option>
+                <option value="您最喜欢的电影是？">您最喜欢的电影是？</option>
+                <option value="您的宠物名字是？">您的宠物名字是？</option>
+                <option value="您最喜欢的书籍是？">您最喜欢的书籍是？</option>
+                <option value="您的第一份工作是？">您的第一份工作是？</option>
+                <option value="custom">自定义问题...</option>
+            </select>
         </div>
-        <button type="submit" class="btn btn-primary btn-login">登录</button>
+        
+        <div class="mb-3" id="custom-question-section" style="display: none;">
+            <label for="custom_question" class="form-label">
+                <i class="bi bi-pencil me-2"></i>自定义问题
+            </label>
+            <input type="text" class="form-control form-control-lg" id="custom_question" 
+                   name="custom_question" placeholder="输入您的自定义问题">
+            <div class="security-hint">例如：我最喜欢的颜色是什么？</div>
+        </div>
+        
+        <div class="mb-4">
+            <label for="answer" class="form-label">
+                <i class="bi bi-key me-2"></i>答案
+            </label>
+            <input type="text" class="form-control form-control-lg" id="answer" 
+                   name="answer" placeholder="输入答案（至少2个字符）" required>
+            <div class="security-hint">答案不区分大小写，请确保您能记住</div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-submit">
+            <i class="bi bi-check-circle me-2"></i>完成设置并进入系统
+        </button>
     </form>
-    
-    <div class="text-center mt-3">
-        <a href="/forgot-password" style="color: rgba(255, 255, 255, 0.8); text-decoration: none; font-size: 14px;">
-            忘记密码？
-        </a>
-    </div>
-    
-    <div class="text-center mt-2">
-        <small class="text-muted">请妥善保管您的密码</small>
-    </div>
     
     <div class="text-center mt-4" style="opacity: 0.8;">
         <small class="text-muted" style="font-size: 0.8rem;">
@@ -222,6 +267,22 @@
         </small>
     </div>
 </div>
+
+<script>
+function toggleCustomQuestion() {
+    const select = document.getElementById('question');
+    const customSection = document.getElementById('custom-question-section');
+    const customInput = document.getElementById('custom_question');
+    
+    if (select.value === 'custom') {
+        customSection.style.display = 'block';
+        customInput.required = true;
+    } else {
+        customSection.style.display = 'none';
+        customInput.required = false;
+    }
+}
+</script>
 
 </body>
 </html>
